@@ -30,8 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env.local
+.env.production
+.env.development
 
 # vercel
 .vercel
@@ -39,3 +42,27 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+
+# Prisma config (contient l'URL de la base)
+prisma.config.ts
+
+# Fichiers de build Prisma
+prisma/migrations/
+
+# Logs
+*.log
+/var/log/bbbmanager*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# PNPM
+pnpm-workspace.yaml

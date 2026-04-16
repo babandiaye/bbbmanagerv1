@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  auditeur
+}
+
+model User {
+  id                String    @id @default(uuid())
+  kcSub             String    @unique @map("kc_sub")
+  email             String
+  preferredUsername String    @map("preferred_username")
+  givenName         String?   @map("given_name")
+  familyName        String?   @map("family_name")
+  fullName          String?   @map("full_name")
+  direction         String
+  role              UserRole  @default(auditeur)
+  isActive          Boolean   @default(true) @map("is_active")
+  lastLogin         DateTime? @map("last_login")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  rebuildJobs RebuildJob[]
+
+  @@index([kcSub])
+  @@index([direction])
+  @@map("users")
+}
+
+model BbbServer {
+  id           String    @id @default(uuid())
+  name         String
+  url          String
+  secretEnc    String    @map("secret_enc")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastSyncAt   DateTime? @map("last_sync_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  recordings   Recording[]
+  rebuildJobs  RebuildJob[]
+
+  @@map("bbb_servers")
+}
+
+model Recording {
+  id           String    @id @default(uuid())
+  recordId     String    @unique @map("record_id")
+  meetingId    String    @map("meeting_id")
+  name         String
+  durationSec  Int       @map("duration_sec")
+  published    Boolean   @default(false)
+  state        String
+  startTime    DateTime  @map("start_time")
+  endTime      DateTime? @map("end_time")
+  playbackUrl  String?   @map("playback_url")
+  rawData      Json?     @map("raw_data")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  server       BbbServer  @relation(fields: [serverId], references: [id])
+  serverId     String     @map("server_id")
+  rebuildJobs  RebuildJob[]
+
+  @@index([serverId])
+  @@index([published])
+  @@index([state])
+  @@map("recordings")
+}
+
+model RebuildJob {
+  id          String    @id @default(uuid())
+  status      String    @default("pending")
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  errorMsg    String?   @map("error_msg")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  recording   Recording @relation(fields: [recordingId], references: [id])
+  recordingId String    @map("recording_id")
+  server      BbbServer @relation(fields: [serverId], references: [id])
+  serverId    String    @map("server_id")
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String    @map("user_id")
+
+  @@index([recordingId])
+  @@index([status])
+  @@map("rebuild_jobs")
+}
