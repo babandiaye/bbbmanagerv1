@@ -8,7 +8,7 @@ import {
   ServerIcon,
   FilmIcon,
   UsersIcon,
-  ArrowRightStartOnRectangleIcon,
+  ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline'
 import { clsx } from 'clsx'
 
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/',             label: 'Dashboard',        icon: HomeIcon },
   { href: '/servers',      label: 'Serveurs BBB',     icon: ServerIcon },
   { href: '/recordings',   label: 'Enregistrements',  icon: FilmIcon },
+  { href: '/rebuild',      label: 'Publication CSV',  icon: ArrowUpTrayIcon },
   { href: '/users',        label: 'Utilisateurs',     icon: UsersIcon },
 ]
 
@@ -30,12 +31,10 @@ export default function Sidebar({
 
   return (
     <aside className="w-52 min-h-screen bg-white border-r border-gray-100 flex flex-col">
-      {/* Logo */}
-      <div className="px-4 py-4 border-b border-gray-100 flex items-center gap-2">
-        <div className="w-7 h-7 rounded-md bg-blue-600 flex items-center justify-center">
-          <span className="text-white text-xs font-bold">B</span>
-        </div>
-        <span className="text-sm font-semibold text-gray-800">BBB Manager</span>
+      {/* Logo UN-CHK */}
+      <div className="px-4 py-4 border-b border-gray-100 flex flex-col items-center gap-1">
+        <img src="/logo-unchk.png" alt="UN-CHK" className="h-10 object-contain" />
+        <span className="text-xs font-semibold text-gray-800">BBB Manager</span>
       </div>
 
       {/* Navigation */}
@@ -66,9 +65,27 @@ export default function Sidebar({
         <p className="text-[10px] text-gray-400 uppercase mb-3">{userRole}</p>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
-          className="flex items-center gap-2 text-xs text-gray-400 hover:text-red-500 transition"
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            background: '#fff1f1',
+            border: '1px solid #fecaca',
+            borderRadius: 7,
+            color: '#dc2626',
+            fontSize: 13,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 7,
+            fontWeight: 500,
+          }}
         >
-          <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18.36 6.64A9 9 0 1 1 5.64 5.64"/>
+            <line x1="12" y1="2" x2="12" y2="12"/>
+          </svg>
           Se déconnecter
         </button>
       </div>

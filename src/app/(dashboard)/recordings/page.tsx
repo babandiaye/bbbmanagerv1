@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { ArrowPathIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ArrowPathIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { MIN_RECORDING_DURATION_SEC } from '@/lib/constants'
 
 const REBUILDABLE_STATES = ['processed', 'unpublished']
@@ -14,6 +14,12 @@ type Recording = {
   state: string
   startTime: string
   server: { name: string }
+  serverId: string
+}
+
+type Server = {
+  id: string
+  name: string
 }
 
 function StatusBadge({ published, state, durationSec }: {
@@ -75,19 +81,35 @@ type FilterKey = 'all' | 'unpublished' | 'rebuildable' | 'short'
 
 export default function RecordingsPage() {
   const [recordings, setRecordings] = useState<Recording[]>([])
+  const [servers, setServers] = useState<Server[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterKey>('all')
+  const [selectedServer, setSelectedServer] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
   const [rebuilding, setRebuilding] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [message, setMessage] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const loadRecordings = useCallback(async (p: number, f: FilterKey) => {
+  // Charger la liste des serveurs au montage
+  useEffect(() => {
+    fetch('/api/servers').then(r => r.json()).then(setServers)
+  }, [])
+
+  const loadRecordings = useCallback(async (p: number, f: FilterKey, srv: string, from: string, to: string, q: string) => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(p) })
     if (f !== 'all') params.set('filter', f)
+    if (srv) params.set('serverId', srv)
+    if (from) params.set('dateFrom', from)
+    if (to) params.set('dateTo', to)
+    if (q) params.set('search', q)
     const res = await fetch(`/api/recordings?${params}`)
     const data = await res.json()
     setRecordings(data.recordings)
@@ -96,10 +118,42 @@ export default function RecordingsPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadRecordings(page, filter) }, [page, filter, loadRecordings])
+  useEffect(() => {
+    loadRecordings(page, filter, selectedServer, dateFrom, dateTo, search)
+  }, [page, filter, selectedServer, dateFrom, dateTo, search, loadRecordings])
+
+  function handleSearchInput(value: string) {
+    setSearchInput(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setSearch(value)
+      setPage(1)
+    }, 400)
+  }
 
   function changeFilter(f: FilterKey) {
     setFilter(f)
+    setPage(1)
+  }
+
+  function handleServerChange(srv: string) {
+    setSelectedServer(srv)
+    setPage(1)
+  }
+
+  function handleDateChange(type: 'from' | 'to', value: string) {
+    if (type === 'from') setDateFrom(value)
+    else setDateTo(value)
+    setPage(1)
+  }
+
+  function resetFilters() {
+    setFilter('all')
+    setSelectedServer('')
+    setDateFrom('')
+    setDateTo('')
+    setSearch('')
+    setSearchInput('')
     setPage(1)
   }
 
@@ -109,7 +163,7 @@ export default function RecordingsPage() {
     const res = await fetch('/api/recordings/sync', { method: 'POST' })
     const data = await res.json()
     setMessage(`Sync terminée — ${data.synced} enregistrements mis à jour`)
-    await loadRecordings(1, filter)
+    await loadRecordings(1, filter, selectedServer, dateFrom, dateTo, search)
     setPage(1)
     setSyncing(false)
   }
@@ -125,7 +179,7 @@ export default function RecordingsPage() {
     const data = await res.json()
     if (res.ok) {
       setMessage('Publication lancée avec succès')
-      await loadRecordings(page, filter)
+      await loadRecordings(page, filter, selectedServer, dateFrom, dateTo, search)
     } else {
       setMessage(`Erreur : ${data.error}`)
     }
@@ -138,6 +192,8 @@ export default function RecordingsPage() {
     { key: 'rebuildable', label: 'Publiables' },
     { key: 'short',       label: 'Trop courts' },
   ]
+
+  const hasActiveFilters = filter !== 'all' || selectedServer || dateFrom || dateTo || search
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -164,8 +220,20 @@ export default function RecordingsPage() {
         </div>
       )}
 
-      {/* Filtres */}
-      <div className="flex items-center gap-2 mb-4">
+      {/* Recherche */}
+      <div className="relative mb-3">
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => handleSearchInput(e.target.value)}
+          placeholder="Rechercher par nom, record ID ou meeting ID..."
+          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+        />
+      </div>
+
+      {/* Filtres statut */}
+      <div className="flex items-center gap-2 mb-3">
         <FunnelIcon className="w-4 h-4 text-gray-400" />
         {filters.map(({ key, label }) => (
           <button
@@ -180,7 +248,50 @@ export default function RecordingsPage() {
             {label}
           </button>
         ))}
-        <span className="text-xs text-gray-400 ml-2">{total} résultat(s)</span>
+      </div>
+
+      {/* Filtres serveur + date */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <select
+          value={selectedServer}
+          onChange={(e) => handleServerChange(e.target.value)}
+          className="text-xs px-3 py-1.5 border border-gray-200 rounded-md bg-white text-gray-600 focus:outline-none focus:border-blue-300"
+        >
+          <option value="">Tous les serveurs</option>
+          {servers.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-400">Du</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => handleDateChange('from', e.target.value)}
+            className="text-xs px-2 py-1.5 border border-gray-200 rounded-md bg-white text-gray-600 focus:outline-none focus:border-blue-300"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-400">Au</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => handleDateChange('to', e.target.value)}
+            className="text-xs px-2 py-1.5 border border-gray-200 rounded-md bg-white text-gray-600 focus:outline-none focus:border-blue-300"
+          />
+        </div>
+
+        {hasActiveFilters && (
+          <button
+            onClick={resetFilters}
+            className="text-xs px-3 py-1.5 text-red-500 hover:text-red-700 transition"
+          >
+            Réinitialiser
+          </button>
+        )}
+
+        <span className="text-xs text-gray-400 ml-auto">{total} résultat(s)</span>
       </div>
 
       {/* Tableau */}
