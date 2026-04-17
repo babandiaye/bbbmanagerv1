@@ -1,47 +1,68 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { signIn } from 'next-auth/react'
 import Footer from '@/components/Footer'
+import {
+  ComputerDesktopIcon,
+  ArrowUpTrayIcon,
+  ChartBarIcon,
+  ShieldCheckIcon,
+} from '@heroicons/react/24/outline'
+
+type PublicStats = { servers: number; recordings: number; publishRate: number }
 
 const FEATURES = [
   {
-    icon: '🖥️',
+    Icon: ComputerDesktopIcon,
     title: 'Multi-serveurs BBB',
-    desc: "Centralisez la gestion de tous vos serveurs BigBlueButton avec une connectivité testée automatiquement à l'ajout.",
-    accent: '#0065b1',
+    desc: "Centralisez plusieurs serveurs BBB avec test de connectivité automatique à l'ajout.",
+    badge: 'Connectivité testée',
     bg: '#e8f4ff',
-    border: '#b8d9f8',
+    iconColor: '#0065b1',
+    badgeBg: '#e8f4ff',
+    badgeColor: '#0065b1',
   },
   {
-    icon: '📹',
-    title: 'Enregistrements synchronisés',
-    desc: "Récupérez automatiquement tous les enregistrements (processing, processed, published, unpublished) depuis l'API BBB.",
-    accent: '#16a34a',
-    bg: '#e6f7eb',
-    border: '#a8ddb5',
-  },
-  {
-    icon: '⚡',
+    Icon: ArrowUpTrayIcon,
     title: 'Publication en masse',
-    desc: "Importez un CSV de record IDs depuis Moodle et publiez-les automatiquement sur le bon serveur BBB.",
-    accent: '#b45309',
-    bg: '#fff3e0',
-    border: '#ffcc80',
+    desc: "Importez un CSV de record IDs depuis Moodle et publiez-les automatiquement.",
+    badge: 'Import CSV',
+    bg: '#e6f7eb',
+    iconColor: '#16a34a',
+    badgeBg: '#e6f7eb',
+    badgeColor: '#16a34a',
   },
   {
-    icon: '📊',
-    title: 'Tableau de bord',
-    desc: "Suivez en temps réel les statistiques par serveur, les états d'enregistrements et l'historique des publications.",
-    accent: '#0065b1',
-    bg: '#e8f4ff',
-    border: '#90caf9',
+    Icon: ChartBarIcon,
+    title: 'Dashboard temps réel',
+    desc: 'Statistiques par serveur, états des enregistrements et historique des jobs.',
+    badge: 'Stats live',
+    bg: '#fff3e0',
+    iconColor: '#b45309',
+    badgeBg: '#fff3e0',
+    badgeColor: '#b45309',
+  },
+  {
+    Icon: ShieldCheckIcon,
+    title: 'Accès sécurisé SSO',
+    desc: 'Authentification Keycloak UN-CHK, filtre direction DITSI, rôles admin/auditeur.',
+    badge: 'Keycloak OIDC',
+    bg: '#f3e8ff',
+    iconColor: '#7c3aed',
+    badgeBg: '#f3e8ff',
+    badgeColor: '#7c3aed',
   },
 ]
 
 export default function LoginClient({ error }: { error?: string }) {
-  const handleLogin = () => {
-    signIn('keycloak', { callbackUrl: '/' })
-  }
+  const [stats, setStats] = useState<PublicStats>({ servers: 0, recordings: 0, publishRate: 0 })
+
+  useEffect(() => {
+    fetch('/api/public-stats').then(r => r.json()).then(setStats).catch(() => {})
+  }, [])
+
+  const handleLogin = () => signIn('keycloak', { callbackUrl: '/' })
 
   return (
     <div style={{
@@ -55,44 +76,44 @@ export default function LoginClient({ error }: { error?: string }) {
         .feature-card {
           background: white;
           border-radius: 14px;
-          padding: 24px 20px;
-          cursor: default;
-          transition: box-shadow 0.2s, transform 0.15s, background 0.2s, border-color 0.2s;
-          border: 1.5px solid #f0f0f0;
+          padding: 18px 20px;
+          border: 1.5px solid #eef1f6;
+          transition: box-shadow 0.2s, transform 0.15s, border-color 0.2s, background 0.2s;
+          display: flex;
+          gap: 16px;
         }
         .feature-card:hover {
-          box-shadow: 0 6px 24px rgba(0,0,0,0.09);
+          box-shadow: 0 6px 24px rgba(0,0,0,0.08);
           transform: translateY(-2px);
         }
-        .feature-card-0:hover { background: #dceefb; border-color: #b8d9f8; }
-        .feature-card-1:hover { background: #d4f0dc; border-color: #a8ddb5; }
-        .feature-card-2:hover { background: #ffe0b2; border-color: #ffcc80; }
-        .feature-card-3:hover { background: #dceefb; border-color: #90caf9; }
-        .signin-btn {
+        .feature-card-0:hover { background: #e8f4ff; border-color: #0065b1; }
+        .feature-card-1:hover { background: #e6f7eb; border-color: #16a34a; }
+        .feature-card-2:hover { background: #fff3e0; border-color: #b45309; }
+        .feature-card-3:hover { background: #f3e8ff; border-color: #7c3aed; }
+        .header-signin {
           background: #0065b1;
           color: white;
           border: none;
           border-radius: 8px;
-          padding: 10px 28px;
-          font-size: 15px;
+          padding: 9px 22px;
+          font-size: 14px;
           font-weight: 600;
           cursor: pointer;
           font-family: inherit;
           transition: background 0.15s;
         }
-        .signin-btn:hover {
-          background: #0051a2;
-        }
-        .features-grid {
+        .header-signin:hover { background: #0051a2; }
+        .main-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 20px;
+          grid-template-columns: 1.1fr 1fr;
+          gap: 48px;
+          max-width: 1180px;
+          width: 100%;
+          margin: 0 auto;
+          padding: 64px 32px 48px;
         }
         @media (max-width: 900px) {
-          .features-grid { grid-template-columns: repeat(2, 1fr) !important; }
-        }
-        @media (max-width: 560px) {
-          .features-grid { grid-template-columns: 1fr !important; }
+          .main-grid { grid-template-columns: 1fr !important; gap: 32px; padding: 40px 20px; }
         }
       `}</style>
 
@@ -101,7 +122,7 @@ export default function LoginClient({ error }: { error?: string }) {
         background: 'white',
         borderBottom: '1px solid #e2e8f0',
         padding: '0 32px',
-        height: 64,
+        height: 72,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -109,130 +130,183 @@ export default function LoginClient({ error }: { error?: string }) {
         top: 0,
         zIndex: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <img
             src="/logo-unchk.png"
             alt="UN-CHK"
-            width={56}
-            height={56}
-            style={{ objectFit: 'contain' }}
+            style={{ height: 44, objectFit: 'contain' }}
           />
-          <div style={{ width: 1, height: 32, background: '#e2e8f0' }} />
+          <div style={{ width: 1, height: 36, background: '#e2e8f0' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', letterSpacing: '-0.01em' }}>
+              BBB Manager
+            </span>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>
+              Université Numérique Cheikh Hamidou Kane
+            </span>
+          </div>
           <span style={{
-            fontSize: 15,
-            fontWeight: 700,
-            color: '#1a1a2e',
-            letterSpacing: '-0.01em',
+            marginLeft: 8,
+            padding: '4px 10px',
+            borderRadius: 999,
+            background: '#e8f4ff',
+            color: '#0065b1',
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: '0.02em',
           }}>
-            BBB Manager — UN-CHK
+            DITSI
           </span>
         </div>
-        <button className="signin-btn" onClick={handleLogin}>
-          S&apos;identifier
+        <button className="header-signin" onClick={handleLogin}>
+          Se connecter
         </button>
       </header>
 
-      {/* Hero */}
-      <main style={{ flex: 1, padding: '60px 32px 48px' }}>
-        <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'center', marginBottom: 52 }}>
-          <h1 style={{
-            fontSize: 'clamp(28px, 5vw, 40px)',
-            fontWeight: 700,
-            color: '#1a1a2e',
-            lineHeight: 1.2,
-            margin: '0 0 16px',
-          }}>
-            Plateforme de gestion<br />des serveurs BigBlueButton
-          </h1>
-          <p style={{
-            fontSize: 16,
-            color: '#6b7280',
-            lineHeight: 1.7,
-            margin: '0 auto',
-            maxWidth: 600,
-          }}>
-            BBB Manager centralise l&apos;administration de votre cluster BigBlueButton :
-            synchronisation des enregistrements, publication automatisée et supervision
-            multi-serveurs pour l&apos;Université Numérique Cheikh Hamidou Kane.
-          </p>
-
-          {/* Messages d'erreur */}
-          {error === 'disabled' && (
-            <div style={{
-              maxWidth: 600,
-              margin: '24px auto 0',
-              padding: '12px 16px',
-              background: '#fff1f1',
-              border: '1px solid #fecaca',
-              borderRadius: 8,
-              color: '#dc2626',
-              fontSize: 14,
+      {/* Main grid : Hero à gauche, cartes à droite */}
+      <main style={{ flex: 1 }}>
+        <div className="main-grid">
+          {/* Colonne gauche : Hero */}
+          <div>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 14px',
+              borderRadius: 999,
+              background: '#e8f4ff',
+              color: '#0065b1',
+              fontSize: 13,
+              fontWeight: 500,
+              marginBottom: 28,
             }}>
-              Votre compte est désactivé. Contactez un administrateur.
-            </div>
-          )}
-          {error && error !== 'disabled' && (
-            <div style={{
-              maxWidth: 600,
-              margin: '24px auto 0',
-              padding: '12px 16px',
-              background: '#fff1f1',
-              border: '1px solid #fecaca',
-              borderRadius: 8,
-              color: '#dc2626',
-              fontSize: 14,
-            }}>
-              Accès refusé — vous devez appartenir à la direction DITSI.
-            </div>
-          )}
-        </div>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0065b1' }} />
+              Plateforme de gestion BigBlueButton
+            </span>
 
-        {/* Features */}
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <p style={{
-            textAlign: 'center',
-            fontSize: 12,
-            fontWeight: 600,
-            color: '#9ca3af',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            marginBottom: 24,
-          }}>
-            Principales fonctionnalités
-          </p>
-          <div className="features-grid">
-            {FEATURES.map((f, i) => (
+            <h1 style={{
+              fontSize: 'clamp(34px, 5vw, 52px)',
+              fontWeight: 800,
+              color: '#1a1a2e',
+              lineHeight: 1.1,
+              letterSpacing: '-0.02em',
+              margin: '0 0 20px',
+            }}>
+              Gérez vos{' '}
+              <span style={{ color: '#0065b1' }}>enregistrements</span>{' '}
+              BBB en un clic
+            </h1>
+
+            <p style={{
+              fontSize: 16,
+              color: '#6b7280',
+              lineHeight: 1.7,
+              margin: '0 0 32px',
+              maxWidth: 520,
+            }}>
+              Supervisez, synchronisez et publiez les enregistrements de vos classes virtuelles
+              depuis une interface centralisée. Accès réservé à la direction DITSI de l&apos;UN-CHK.
+            </p>
+
+            {/* Messages d'erreur */}
+            {error === 'disabled' && (
+              <div style={{
+                maxWidth: 520,
+                padding: '12px 16px',
+                background: '#fff1f1',
+                border: '1px solid #fecaca',
+                borderRadius: 10,
+                color: '#dc2626',
+                fontSize: 14,
+                marginBottom: 32,
+              }}>
+                Votre compte est désactivé. Contactez un administrateur.
+              </div>
+            )}
+            {error && error !== 'disabled' && (
+              <div style={{
+                maxWidth: 520,
+                padding: '12px 16px',
+                background: '#fff1f1',
+                border: '1px solid #fecaca',
+                borderRadius: 10,
+                color: '#dc2626',
+                fontSize: 14,
+                marginBottom: 32,
+              }}>
+                Accès refusé — vous devez appartenir à la direction DITSI.
+              </div>
+            )}
+
+            {/* Stats */}
+            <div style={{
+              display: 'flex',
+              gap: 48,
+              paddingTop: 24,
+              borderTop: '1px solid #e2e8f0',
+            }}>
+              <div>
+                <p style={{ fontSize: 32, fontWeight: 800, color: '#1a1a2e', margin: 0, letterSpacing: '-0.02em' }}>
+                  {stats.servers}
+                </p>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>
+                  Serveurs BBB
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize: 32, fontWeight: 800, color: '#1a1a2e', margin: 0, letterSpacing: '-0.02em' }}>
+                  {stats.recordings.toLocaleString('fr-FR')}
+                </p>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>
+                  Enregistrements
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize: 32, fontWeight: 800, color: '#1a1a2e', margin: 0, letterSpacing: '-0.02em' }}>
+                  {stats.publishRate}%
+                </p>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>
+                  Taux publication
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Colonne droite : 4 cartes */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {FEATURES.map(({ Icon, title, desc, badge, bg, iconColor, badgeBg, badgeColor }, i) => (
               <div key={i} className={`feature-card feature-card-${i}`}>
                 <div style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 12,
-                  background: f.bg,
-                  border: `1.5px solid ${f.border}`,
+                  flexShrink: 0,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: bg,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 24,
-                  marginBottom: 16,
                 }}>
-                  {f.icon}
+                  <Icon style={{ width: 22, height: 22, color: iconColor }} />
                 </div>
-                <h3 style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: f.accent,
-                  margin: '0 0 10px',
-                }}>
-                  {f.title}
-                </h3>
-                <p style={{
-                  fontSize: 14,
-                  color: '#6b7280',
-                  lineHeight: 1.6,
-                  margin: 0,
-                }}>
-                  {f.desc}
-                </p>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', margin: '0 0 4px' }}>
+                    {title}
+                  </h3>
+                  <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.5, margin: '0 0 10px' }}>
+                    {desc}
+                  </p>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '3px 10px',
+                    borderRadius: 6,
+                    background: badgeBg,
+                    color: badgeColor,
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}>
+                    {badge}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

@@ -8,7 +8,12 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth
 
   // Routes publiques
-  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth') || pathname.startsWith('/api/health')) {
+  if (
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/health') ||
+    pathname.startsWith('/api/public-stats')
+  ) {
     return NextResponse.next()
   }
 
