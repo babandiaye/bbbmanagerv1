@@ -64,12 +64,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
 
-    async jwt({ token, profile }) {
+    async jwt({ token, profile, account }) {
       if (profile) {
         token.sub       = profile.sub ?? undefined
         token.direction = (profile as any).direction
       }
+      // Conserver l'id_token Keycloak pour la déconnexion complète
+      if (account?.id_token) {
+        token.id_token = account.id_token
+      }
       return token
+    },
+  },
+  events: {
+    // Déconnexion complète : invalide aussi la session côté Keycloak
+    async signOut(message) {
+      const idToken = 'token' in message ? (message.token as any)?.id_token : null
+      if (idToken && process.env.KEYCLOAK_ISSUER) {
+        try {
+          const logoutUrl = new URL(
+            `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/logout`
+          )
+          logoutUrl.searchParams.set('id_token_hint', idToken as string)
+          if (process.env.NEXTAUTH_URL) {
+            logoutUrl.searchParams.set('post_logout_redirect_uri', `${process.env.NEXTAUTH_URL}/login`)
+          }
+          await fetch(logoutUrl.toString())
+        } catch {
+          // Ignorer les erreurs — la session NextAuth est déjà supprimée côté app
+        }
+      }
     },
   },
   pages: {

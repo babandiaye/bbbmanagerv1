@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { ArrowUpTrayIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 type ResultItem = {
   recordId: string
@@ -28,6 +29,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 }
 
 export default function RebuildBatchPage() {
+  const { isAdmin, loading: userLoading } = useCurrentUser()
   const [ids, setIds] = useState<string[]>([])
   const [textInput, setTextInput] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -111,6 +113,17 @@ export default function RebuildBatchPage() {
     setSummary(null)
     setError('')
     if (fileRef.current) fileRef.current.value = ''
+  }
+
+  if (!userLoading && !isAdmin) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-8 text-center">
+          <p className="font-medium">Accès refusé</p>
+          <p className="text-xs mt-1">Cette page est réservée aux administrateurs.</p>
+        </div>
+      </div>
+    )
   }
 
   return (

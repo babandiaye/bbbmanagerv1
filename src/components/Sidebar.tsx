@@ -13,11 +13,11 @@ import {
 import { clsx } from 'clsx'
 
 const navItems = [
-  { href: '/',             label: 'Dashboard',        icon: HomeIcon },
-  { href: '/servers',      label: 'Serveurs BBB',     icon: ServerIcon },
-  { href: '/recordings',   label: 'Enregistrements',  icon: FilmIcon },
-  { href: '/rebuild',      label: 'Publication CSV',  icon: ArrowUpTrayIcon },
-  { href: '/users',        label: 'Utilisateurs',     icon: UsersIcon },
+  { href: '/',             label: 'Dashboard',        icon: HomeIcon,          adminOnly: false },
+  { href: '/servers',      label: 'Serveurs BBB',     icon: ServerIcon,        adminOnly: false },
+  { href: '/recordings',   label: 'Enregistrements',  icon: FilmIcon,          adminOnly: false },
+  { href: '/rebuild',      label: 'Publication CSV',  icon: ArrowUpTrayIcon,   adminOnly: true },
+  { href: '/users',        label: 'Utilisateurs',     icon: UsersIcon,         adminOnly: true },
 ]
 
 export default function Sidebar({
@@ -42,21 +42,23 @@ export default function Sidebar({
         <p className="px-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
           Navigation
         </p>
-        {navItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={clsx(
-              'flex items-center gap-2.5 px-4 py-2 text-sm transition',
-              pathname === href
-                ? 'bg-blue-50 text-blue-700 font-medium border-r-2 border-blue-600'
-                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
-            )}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </Link>
-        ))}
+        {navItems
+          .filter((item) => !item.adminOnly || userRole === 'admin')
+          .map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={clsx(
+                'flex items-center gap-2.5 px-4 py-2 text-sm transition',
+                pathname === href
+                  ? 'bg-blue-50 text-blue-700 font-medium border-r-2 border-blue-600'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </Link>
+          ))}
       </nav>
 
       {/* User + Logout */}

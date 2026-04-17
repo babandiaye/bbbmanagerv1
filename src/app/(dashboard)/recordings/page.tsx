@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowPathIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { MIN_RECORDING_DURATION_SEC } from '@/lib/constants'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const REBUILDABLE_STATES = ['processed', 'unpublished']
 
@@ -82,6 +83,7 @@ type FilterKey = 'all' | 'unpublished' | 'rebuildable' | 'short'
 export default function RecordingsPage() {
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [servers, setServers] = useState<Server[]>([])
+  const { isAdmin } = useCurrentUser()
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterKey>('all')
   const [selectedServer, setSelectedServer] = useState('')
@@ -339,7 +341,7 @@ export default function RecordingsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(rec.startTime)}</td>
                     <td className="px-4 py-3">
-                      {isRebuildable ? (
+                      {isRebuildable && isAdmin ? (
                         <button
                           onClick={() => handleRebuild(rec.id)}
                           disabled={rebuilding === rec.id}

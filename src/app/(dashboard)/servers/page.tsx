@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { PlusIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 type Server = {
   id: string
@@ -13,6 +14,7 @@ type Server = {
 }
 
 export default function ServersPage() {
+  const { isAdmin } = useCurrentUser()
   const [servers, setServers] = useState<Server[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -81,13 +83,15 @@ export default function ServersPage() {
           <h1 className="text-lg font-semibold text-gray-900">Serveurs BBB</h1>
           <p className="text-sm text-gray-400">{servers.length} serveur(s) configuré(s)</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 text-sm px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-        >
-          <PlusIcon className="w-4 h-4" />
-          Ajouter un serveur
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 text-sm px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+          >
+            <PlusIcon className="w-4 h-4" />
+            Ajouter un serveur
+          </button>
+        )}
       </div>
 
       {/* Formulaire ajout */}
@@ -184,24 +188,38 @@ export default function ServersPage() {
                   <td className="px-4 py-3 text-gray-600">{server.recordings}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(server.lastSyncAt)}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleToggle(server.id, server.isActive)}
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium transition ${
-                        server.isActive
-                          ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      {server.isActive ? 'Actif' : 'Inactif'}
-                    </button>
+                    {isAdmin ? (
+                      <button
+                        onClick={() => handleToggle(server.id, server.isActive)}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium transition ${
+                          server.isActive
+                            ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        {server.isActive ? 'Actif' : 'Inactif'}
+                      </button>
+                    ) : (
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          server.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {server.isActive ? 'Actif' : 'Inactif'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleDelete(server.id, server.name)}
-                      className="text-gray-300 hover:text-red-500 transition"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+                    {isAdmin ? (
+                      <button
+                        onClick={() => handleDelete(server.id, server.name)}
+                        className="text-gray-300 hover:text-red-500 transition"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

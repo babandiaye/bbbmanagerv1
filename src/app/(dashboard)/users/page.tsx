@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 type User = {
   id: string
@@ -23,6 +24,7 @@ function formatDate(date: string | null) {
 }
 
 export default function UsersPage() {
+  const { isAdmin, loading: userLoading } = useCurrentUser()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
@@ -57,6 +59,17 @@ export default function UsersPage() {
     })
     await loadUsers()
     setUpdating(null)
+  }
+
+  if (!userLoading && !isAdmin) {
+    return (
+      <div className="max-w-5xl mx-auto">
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-8 text-center">
+          <p className="font-medium">Accès refusé</p>
+          <p className="text-xs mt-1">Cette page est réservée aux administrateurs.</p>
+        </div>
+      </div>
+    )
   }
 
   return (
