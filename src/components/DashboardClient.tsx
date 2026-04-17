@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import SyncButton from '@/components/SyncButton'
 import RebuildButton from '@/components/RebuildButton'
 import { MIN_RECORDING_DURATION_SEC } from '@/lib/constants'
@@ -322,8 +323,13 @@ export default function DashboardClient({ fullName }: { fullName: string }) {
 
                       return (
                         <tr key={rec.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                          <td className="px-4 py-3 max-w-[180px] truncate font-medium text-gray-800">
-                            {rec.name}
+                          <td className="px-4 py-3 max-w-[180px] truncate">
+                            <Link
+                              href={`/recordings/${rec.id}`}
+                              className="font-medium text-gray-800 hover:text-blue-600 transition"
+                            >
+                              {rec.name}
+                            </Link>
                           </td>
                           <td className="px-4 py-3">
                             <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded">
