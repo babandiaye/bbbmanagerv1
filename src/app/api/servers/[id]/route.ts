@@ -37,6 +37,29 @@ export async function DELETE(
   if (session.user.role !== 'admin') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
 
   const { id } = await params
-  await prisma.bbbServer.delete({ where: { id } })
-  return NextResponse.json({ success: true })
+
+  const server = await prisma.bbbServer.findUnique({
+    where: { id },
+    include: { _count: { select: { recordings: true, rebuildJobs: true } } },
+  })
+
+  if (!server) {
+    return NextResponse.json({ error: 'Serveur introuvable' }, { status: 404 })
+  }
+
+  try {
+    // La cascade supprime automatiquement les recordings et rebuild_jobs liés
+    await prisma.bbbServer.delete({ where: { id } })
+    return NextResponse.json({
+      success: true,
+      name: server.name,
+      recordingsDeleted: server._count.recordings,
+      jobsDeleted: server._count.rebuildJobs,
+    })
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: `Suppression impossible : ${err.message}` },
+      { status: 500 }
+    )
+  }
 }

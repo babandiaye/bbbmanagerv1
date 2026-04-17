@@ -21,6 +21,8 @@ export default function ServersPage() {
   const [form, setForm] = useState({ name: '', url: '', secret: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [message, setMessage] = useState('')
 
   async function loadServers() {
     setLoading(true)
@@ -52,10 +54,34 @@ export default function ServersPage() {
     setSaving(false)
   }
 
-  async function handleDelete(id: string, name: string) {
-    if (!confirm(`Supprimer le serveur "${name}" ?`)) return
-    await fetch(`/api/servers/${id}`, { method: 'DELETE' })
-    loadServers()
+  async function handleDelete(id: string, name: string, recordings: number) {
+    const confirmMsg = recordings > 0
+      ? `Supprimer le serveur "${name}" ?\n\nCette action supprimera de la base locale :\n- Le serveur\n- ${recordings} enregistrement(s) associé(s)\n- L'historique des jobs de publication\n\nLes données sur le serveur BBB réel ne seront PAS touchées.`
+      : `Supprimer le serveur "${name}" ?\n\nAucun enregistrement associé en base.`
+
+    if (!confirm(confirmMsg)) return
+
+    setDeleting(id)
+    setMessage('')
+    setError('')
+    try {
+      const res = await fetch(`/api/servers/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Erreur lors de la suppression')
+      } else {
+        setMessage(
+          data.recordingsDeleted > 0
+            ? `Serveur "${data.name}" supprimé avec ${data.recordingsDeleted} enregistrement(s).`
+            : `Serveur "${data.name}" supprimé.`
+        )
+        await loadServers()
+      }
+    } catch {
+      setError('Erreur de connexion au serveur')
+    } finally {
+      setDeleting(null)
+    }
   }
 
   async function handleToggle(id: string, isActive: boolean) {
@@ -93,6 +119,18 @@ export default function ServersPage() {
           </button>
         )}
       </div>
+
+      {/* Messages globaux */}
+      {message && (
+        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-3">
+          {message}
+        </div>
+      )}
+      {error && !showForm && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+          {error}
+        </div>
+      )}
 
       {/* Formulaire ajout */}
       {showForm && (
@@ -212,8 +250,10 @@ export default function ServersPage() {
                   <td className="px-4 py-3">
                     {isAdmin ? (
                       <button
-                        onClick={() => handleDelete(server.id, server.name)}
-                        className="text-gray-300 hover:text-red-500 transition"
+                        onClick={() => handleDelete(server.id, server.name, server.recordings)}
+                        disabled={deleting === server.id}
+                        className="text-gray-300 hover:text-red-500 transition disabled:opacity-30 disabled:cursor-wait"
+                        title={`Supprimer ${server.name}`}
                       >
                         <TrashIcon className="w-4 h-4" />
                       </button>

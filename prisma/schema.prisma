@@ -68,7 +68,7 @@ model Recording {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  server       BbbServer  @relation(fields: [serverId], references: [id])
+  server       BbbServer  @relation(fields: [serverId], references: [id], onDelete: Cascade)
   serverId     String     @map("server_id")
   rebuildJobs  RebuildJob[]
 
@@ -87,9 +87,9 @@ model RebuildJob {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  recording   Recording @relation(fields: [recordingId], references: [id])
+  recording   Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
   recordingId String    @map("recording_id")
-  server      BbbServer @relation(fields: [serverId], references: [id])
+  server      BbbServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
   serverId    String    @map("server_id")
   user        User      @relation(fields: [userId], references: [id])
   userId      String    @map("user_id")
