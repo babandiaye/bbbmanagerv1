@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { MIN_RECORDING_DURATION_SEC, REBUILDABLE_STATES } from '@/lib/constants'
+import { requireAuth } from '@/lib/api-helpers'
 
 export async function GET(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const a = await requireAuth()
+  if (!a.ok) return a.response
 
   const serverId = req.nextUrl.searchParams.get('serverId') || undefined
   const serverFilter = serverId ? { serverId } : {}

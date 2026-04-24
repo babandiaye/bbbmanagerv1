@@ -33,6 +33,22 @@ model User {
   @@map("users")
 }
 
+model MoodlePlatform {
+  id          String    @id @default(uuid())
+  name        String
+  url         String
+  tokenEnc    String    @map("token_enc")
+  serviceName String?   @map("service_name")
+  wsUsername  String?   @map("ws_username")
+  siteName    String?   @map("site_name")
+  lastCheckAt DateTime? @map("last_check_at")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("moodle_platforms")
+}
+
 model BbbServer {
   id           String    @id @default(uuid())
   name         String
@@ -75,6 +91,8 @@ model Recording {
   @@index([serverId])
   @@index([published])
   @@index([state])
+  @@index([startTime])
+  @@index([serverId, state])
   @@map("recordings")
 }
 
@@ -96,5 +114,6 @@ model RebuildJob {
 
   @@index([recordingId])
   @@index([status])
+  @@index([recordingId, status])
   @@map("rebuild_jobs")
 }

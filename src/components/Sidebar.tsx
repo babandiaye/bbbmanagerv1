@@ -9,15 +9,17 @@ import {
   FilmIcon,
   UsersIcon,
   ArrowUpTrayIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline'
 import { clsx } from 'clsx'
 
 const navItems = [
-  { href: '/',             label: 'Dashboard',        icon: HomeIcon,          adminOnly: false },
-  { href: '/servers',      label: 'Serveurs BBB',     icon: ServerIcon,        adminOnly: false },
-  { href: '/recordings',   label: 'Enregistrements',  icon: FilmIcon,          adminOnly: false },
-  { href: '/rebuild',      label: 'Publication CSV',  icon: ArrowUpTrayIcon,   adminOnly: true },
-  { href: '/users',        label: 'Utilisateurs',     icon: UsersIcon,         adminOnly: true },
+  { href: '/',                  label: 'Dashboard',         icon: HomeIcon,          adminOnly: false },
+  { href: '/servers',           label: 'Serveurs BBB',      icon: ServerIcon,        adminOnly: false },
+  { href: '/moodle-platforms',  label: 'Plateformes Moodle',icon: AcademicCapIcon,   adminOnly: false },
+  { href: '/recordings',        label: 'Enregistrements',   icon: FilmIcon,          adminOnly: false },
+  { href: '/rebuild',           label: 'Publication CSV',   icon: ArrowUpTrayIcon,   adminOnly: true },
+  { href: '/users',             label: 'Utilisateurs',      icon: UsersIcon,         adminOnly: true },
 ]
 
 export default function Sidebar({

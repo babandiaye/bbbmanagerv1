@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { requireAuth } from '@/lib/api-helpers'
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const a = await requireAuth()
+  if (!a.ok) return a.response
 
   return NextResponse.json({
-    id:       session.user.id,
-    fullName: session.user.fullName,
-    role:     session.user.role,
-    email:    session.user.email,
+    id:       a.user.id,
+    fullName: a.user.fullName,
+    role:     a.user.role,
+    email:    a.user.email,
   })
 }

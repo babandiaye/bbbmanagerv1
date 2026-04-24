@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { encrypt, decrypt } from '@/lib/crypto'
+import { encrypt } from '@/lib/crypto'
 import { bbbCall } from '@/lib/bbb'
+import { requireAuth } from '@/lib/api-helpers'
+import { logger } from '@/lib/logger'
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const a = await requireAuth()
+  if (!a.ok) return a.response
 
   const servers = await prisma.bbbServer.findMany({
     orderBy: { createdAt: 'desc' },
@@ -28,9 +29,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-  if (session.user.role !== 'admin') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+  const a = await requireAuth({ role: 'admin' })
+  if (!a.ok) return a.response
 
   const { name, url, secret } = await req.json()
   if (!name || !url || !secret) {
@@ -62,6 +62,8 @@ export async function POST(req: NextRequest) {
       secretEnc: encrypt(secret),
     },
   })
+
+  logger.info({ userId: a.user.id, serverId: server.id, name: server.name }, 'Serveur BBB ajouté')
 
   return NextResponse.json({ id: server.id, name: server.name, url: server.url }, { status: 201 })
 }

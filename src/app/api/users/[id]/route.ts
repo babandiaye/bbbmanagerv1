@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/api-helpers'
+import { logger } from '@/lib/logger'
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-  if (session.user.role !== 'admin') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+  const a = await requireAuth({ role: 'admin' })
+  if (!a.ok) return a.response
 
   const { id } = await params
   const { role, isActive } = await req.json()
@@ -21,6 +21,11 @@ export async function PATCH(
     where: { id },
     data,
   })
+
+  logger.info(
+    { actorId: a.user.id, targetUserId: id, changes: data },
+    'Utilisateur modifié (action admin)'
+  )
 
   return NextResponse.json({ id: user.id, role: user.role, isActive: user.isActive })
 }

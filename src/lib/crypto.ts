@@ -1,7 +1,22 @@
 import crypto from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
-const KEY = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex')
+
+// Validation au chargement du module : fail fast plutôt qu'erreur obscure au runtime
+const rawKey = process.env.ENCRYPTION_KEY
+if (!rawKey) {
+  throw new Error(
+    'ENCRYPTION_KEY manquante dans les variables d\'environnement. ' +
+    'Générer avec : openssl rand -hex 32'
+  )
+}
+if (rawKey.length !== 64) {
+  throw new Error(
+    `ENCRYPTION_KEY invalide : attendu 64 caractères hexadécimaux (32 bytes), reçu ${rawKey.length}. ` +
+    'Régénérer avec : openssl rand -hex 32'
+  )
+}
+const KEY = Buffer.from(rawKey, 'hex')
 
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(16)

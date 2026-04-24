@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/crypto'
 import { publishRecording } from '@/lib/bbb'
 import { MIN_RECORDING_DURATION_SEC, REBUILDABLE_STATES } from '@/lib/constants'
+import { requireAuth, rateLimit } from '@/lib/api-helpers'
+import { logger } from '@/lib/logger'
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-  if (session.user.role !== 'admin') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+  const a = await requireAuth({ role: 'admin' })
+  if (!a.ok) return a.response
+
+  // Max 30 publications par minute par admin
+  const rl = await rateLimit(`rebuild:${a.user.id}`, 30, 60)
+  if (rl) return rl
 
   const { recordingId } = await req.json()
   if (!recordingId) return NextResponse.json({ error: 'recordingId manquant' }, { status: 400 })
@@ -30,11 +34,16 @@ export async function POST(req: NextRequest) {
     data: {
       recordingId,
       serverId: recording.serverId,
-      userId:   session.user.id,
+      userId:   a.user.id,
       status:   'running',
       startedAt: new Date(),
     },
   })
+
+  logger.info(
+    { userId: a.user.id, recordingId, recordId: recording.recordId, serverId: recording.serverId },
+    'Publication lancée'
+  )
 
   // Lancer le rebuild
   try {
@@ -52,12 +61,14 @@ export async function POST(req: NextRequest) {
           data: { published: true },
         }),
       ])
+      logger.info({ userId: a.user.id, recordingId, jobId: job.id }, 'Publication réussie')
       return NextResponse.json({ success: true, jobId: job.id })
     } else {
       await prisma.rebuildJob.update({
         where: { id: job.id },
         data: { status: 'failed', finishedAt: new Date(), errorMsg: 'BBB a retourné une erreur' },
       })
+      logger.warn({ userId: a.user.id, recordingId, jobId: job.id }, 'Publication refusée par BBB')
       return NextResponse.json({ error: 'Rebuild échoué' }, { status: 500 })
     }
   } catch (err: any) {
@@ -65,6 +76,7 @@ export async function POST(req: NextRequest) {
       where: { id: job.id },
       data: { status: 'failed', finishedAt: new Date(), errorMsg: err.message },
     })
+    logger.error({ err: err.message, recordingId, jobId: job.id }, 'Erreur lors de la publication')
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

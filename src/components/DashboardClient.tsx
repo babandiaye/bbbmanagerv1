@@ -4,10 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import SyncButton from '@/components/SyncButton'
 import RebuildButton from '@/components/RebuildButton'
-import { MIN_RECORDING_DURATION_SEC } from '@/lib/constants'
+import { MIN_RECORDING_DURATION_SEC, REBUILDABLE_STATES } from '@/lib/constants'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-
-const REBUILDABLE_STATES = ['processed', 'unpublished']
 
 type Stats = {
   totalRecordings: number
@@ -318,7 +316,7 @@ export default function DashboardClient({ fullName }: { fullName: string }) {
                     recent.map((rec) => {
                       const isRebuildable =
                         !rec.published &&
-                        REBUILDABLE_STATES.includes(rec.state) &&
+                        (REBUILDABLE_STATES as readonly string[]).includes(rec.state) &&
                         rec.durationSec >= MIN_RECORDING_DURATION_SEC
 
                       return (

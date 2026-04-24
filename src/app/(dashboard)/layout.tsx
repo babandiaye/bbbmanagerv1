@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import Footer from '@/components/Footer'
+import SyncStatusBanner from '@/components/SyncStatusBanner'
 
 export default async function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default async function DashboardLayout({
         userRole={session.user.role}
       />
       <div className="flex-1 flex flex-col">
+        <SyncStatusBanner />
         <main className="flex-1 p-6 overflow-y-auto">
           {children}
         </main>

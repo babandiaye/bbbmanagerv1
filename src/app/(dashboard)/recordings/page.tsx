@@ -3,10 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowPathIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
-import { MIN_RECORDING_DURATION_SEC } from '@/lib/constants'
+import { MIN_RECORDING_DURATION_SEC, REBUILDABLE_STATES } from '@/lib/constants'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-
-const REBUILDABLE_STATES = ['processed', 'unpublished']
 
 type Recording = {
   id: string
@@ -319,7 +317,7 @@ export default function RecordingsPage() {
               {recordings.map((rec) => {
                 const isRebuildable =
                   !rec.published &&
-                  REBUILDABLE_STATES.includes(rec.state) &&
+                  (REBUILDABLE_STATES as readonly string[]).includes(rec.state) &&
                   rec.durationSec >= MIN_RECORDING_DURATION_SEC
 
                 return (

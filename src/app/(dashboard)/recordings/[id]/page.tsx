@@ -12,10 +12,8 @@ import {
   TagIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline'
-import { MIN_RECORDING_DURATION_SEC } from '@/lib/constants'
+import { MIN_RECORDING_DURATION_SEC, REBUILDABLE_STATES } from '@/lib/constants'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-
-const REBUILDABLE_STATES = ['processed', 'unpublished']
 
 type RecordingDetail = {
   id: string
@@ -191,7 +189,7 @@ export default function RecordingDetailPage({ params }: { params: Promise<{ id: 
   const playbackSize = playback.size ? parseInt(playback.size) : 0
   const isRebuildable =
     !rec.published &&
-    REBUILDABLE_STATES.includes(rec.state) &&
+    (REBUILDABLE_STATES as readonly string[]).includes(rec.state) &&
     rec.durationSec >= MIN_RECORDING_DURATION_SEC
 
   return (

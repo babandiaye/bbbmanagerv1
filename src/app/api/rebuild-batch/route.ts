@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/crypto'
 import { publishRecording } from '@/lib/bbb'
+import { requireAuth, rateLimit } from '@/lib/api-helpers'
+import { logger } from '@/lib/logger'
 
 /**
  * POST /api/rebuild-batch
@@ -13,9 +14,12 @@ import { publishRecording } from '@/lib/bbb'
  * Appelle publishRecordings via l'API BBB pour chaque ID.
  */
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-  if (session.user.role !== 'admin') return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+  const a = await requireAuth({ role: 'admin' })
+  if (!a.ok) return a.response
+
+  // Max 3 batches par minute par admin (une exécution peut faire 200 appels BBB)
+  const rl = await rateLimit(`rebuild-batch:${a.user.id}`, 3, 60)
+  if (rl) return rl
 
   const { recordIds } = await req.json()
   if (!Array.isArray(recordIds) || recordIds.length === 0) {
@@ -28,6 +32,11 @@ export async function POST(req: NextRequest) {
 
   // Nettoyer les IDs (trim, supprimer les vides)
   const cleanIds = [...new Set(recordIds.map((id: string) => id.trim()).filter(Boolean))]
+
+  logger.info(
+    { userId: a.user.id, total: cleanIds.length },
+    'Publication en masse lancée'
+  )
 
   // Chercher les recordings en base pour mapper chaque ID à son serveur
   const recordings = await prisma.recording.findMany({
@@ -80,7 +89,7 @@ export async function POST(req: NextRequest) {
             data: {
               recordingId: rec.id,
               serverId: rec.serverId,
-              userId: session.user.id,
+              userId: a.user.id,
               status: 'done',
               startedAt: new Date(),
               finishedAt: new Date(),
@@ -93,7 +102,7 @@ export async function POST(req: NextRequest) {
           data: {
             recordingId: rec.id,
             serverId: rec.serverId,
-            userId: session.user.id,
+            userId: a.user.id,
             status: 'failed',
             startedAt: new Date(),
             finishedAt: new Date(),
@@ -107,7 +116,7 @@ export async function POST(req: NextRequest) {
         data: {
           recordingId: rec.id,
           serverId: rec.serverId,
-          userId: session.user.id,
+          userId: a.user.id,
           status: 'failed',
           startedAt: new Date(),
           finishedAt: new Date(),
@@ -126,6 +135,8 @@ export async function POST(req: NextRequest) {
     notFound: results.filter(r => r.status === 'not_found').length,
     skipped: results.filter(r => r.status === 'skipped').length,
   }
+
+  logger.info({ userId: a.user.id, ...summary }, 'Publication en masse terminée')
 
   return NextResponse.json({ summary, results })
 }
