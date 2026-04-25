@@ -6,6 +6,7 @@ BBB Manager permet d'administrer un cluster BBB et ses plateformes Moodle associ
 
 ## Fonctionnalites
 
+<<<<<<< Updated upstream
 ### Gestion des serveurs BBB
 
 - **Multi-serveurs** : CRUD complet avec test de connectivite automatique a l'ajout
@@ -50,6 +51,40 @@ BBB Manager permet d'administrer un cluster BBB et ses plateformes Moodle associ
 - **Logs structures Pino** avec redaction automatique des secrets
 - Validation du format de `ENCRYPTION_KEY` au demarrage (fail fast)
 - Protection CSRF native NextAuth
+=======
+### Gestion BBB
+- **Multi-serveurs** : ajout et gestion de plusieurs serveurs BBB avec test de connectivite automatique
+- **Synchronisation** : recuperation de tous les enregistrements (published, unpublished, processed, processing, deleted) via l'API BBB avec pagination native (offset/limit)
+- **Publication unitaire** : publication des enregistrements en etat `processed` ou `unpublished` dont la duree depasse 10 minutes
+- **Publication en masse via CSV** : import d'un fichier CSV de record IDs, mapping automatique au bon serveur BBB, traitement par lot (jusqu'a 200 IDs)
+- **Suppression cascade** : supprimer un serveur supprime aussi ses enregistrements et jobs en base (sans toucher au serveur BBB reel)
+
+### Integration Moodle (multi-plateformes)
+- **CRUD plateformes Moodle** : gestion de plusieurs Moodle avec test de connexion via `core_webservice_get_site_info`
+- **Tracabilite** : nom du service Moodle, utilisateur Web Service, nom du site stockes pour audit
+- **Diagnostic croise Moodle ↔ BBB** : recherche unifiee qui croise les enregistrements vus par Moodle et ceux en base BBB Manager
+- **4 types de recherche** (avec validation stricte) : nom d'activite BBB, cmid (ID de module Moodle), record ID BBB, shortname de cours
+- **Detection des "orphelins Moodle"** : enregistrements visibles sur Moodle mais absents de la base BBB → candidats au rebuild via `bbb-record --rebuild`
+- **Commande SSH suggeree** prete a copier pour les orphelins (avec identification automatique du serveur BBB probable)
+
+### Dashboard et UX
+- **Dashboard global et par serveur** : statistiques temps reel filtrables (taux de publication, enregistrements publiables, jobs en cours/echec)
+- **Repartition par etat BBB** : cartes colorees pour chaque etat (processing/processed/published/unpublished/deleted)
+- **Filtres recordings** : par statut, serveur, plage de dates, recherche texte (nom/recordID/meetingID)
+- **Page de details enregistrement** : metadonnees completes (contexte pedagogique Moodle, participants, taille, historique des publications)
+- **Pagination** : 50 enregistrements par page, cote serveur
+
+### Authentification et roles
+- **SSO Keycloak (OIDC)** avec deconnexion complete via `end_session_endpoint`
+- **Filtre par direction** (ex: DITSI) : seuls les utilisateurs de la direction autorisee peuvent se connecter
+- **Roles admin / auditeur** avec masquage des actions sensibles dans l'UI
+
+### Securite
+- **Chiffrement AES-256-GCM** des secrets BBB et tokens Moodle
+- **Validation stricte des inputs** (regex par type) pour toutes les recherches
+- **Middleware** : verification authentification + statut actif a chaque requete
+- **Validation au demarrage** de la cle ENCRYPTION_KEY (fail fast)
+>>>>>>> Stashed changes
 
 ## Stack technique
 
@@ -65,7 +100,11 @@ BBB Manager permet d'administrer un cluster BBB et ses plateformes Moodle associ
 | Authentification | NextAuth + Keycloak (OIDC) | 5.0-beta |
 | Frontend | React 19 + Tailwind CSS 4 | - |
 | API BBB | Checksum SHA-256 + XML (xml2js) | BBB 3.0 |
+<<<<<<< Updated upstream
 | API Moodle | REST JSON (Web Services) | Moodle 4.0+ |
+=======
+| API Moodle | REST JSON Web Services | Moodle 4.0+ |
+>>>>>>> Stashed changes
 | Chiffrement | AES-256-GCM (Node.js crypto) | - |
 | Logs | Pino + pino-pretty (dev) | 9.x |
 | Cron | node-cron | 4.x |
@@ -88,6 +127,7 @@ BBB Manager permet d'administrer un cluster BBB et ses plateformes Moodle associ
   - Un realm contenant les utilisateurs
   - Un client OIDC (type confidential) avec `client_id` et `client_secret`
   - Un attribut `direction` dans le profil utilisateur (utilise pour filtrer l'acces)
+<<<<<<< Updated upstream
 - **Plateforme(s) Moodle 4.0+** (optionnel) avec :
   - Web Services actives (REST protocol)
   - Un service externe contenant au minimum :
@@ -95,6 +135,18 @@ BBB Manager permet d'administrer un cluster BBB et ses plateformes Moodle associ
     - `core_course_get_courses_by_field`
     - `mod_bigbluebuttonbn_get_bigbluebuttonbns_by_courses`
   - Un utilisateur technique avec les permissions necessaires et un token
+=======
+- **Plateforme(s) Moodle 4.0+** (optionnel pour le diagnostic croise) avec :
+  - Web Services actives + REST protocol
+  - Un service externe contenant au minimum :
+    - `core_webservice_get_site_info`
+    - `core_course_get_courses_by_field`
+    - `core_course_get_course_module`
+    - `mod_bigbluebuttonbn_get_bigbluebuttonbns_by_courses`
+    - `mod_bigbluebuttonbn_get_recordings`
+  - Un utilisateur technique (ex: `admin-bbbmanager`) avec les permissions necessaires
+  - Un token genere pour cet utilisateur sur ce service
+>>>>>>> Stashed changes
 
 ## Installation
 
@@ -282,6 +334,7 @@ Pour chaque plateforme Moodle a integrer :
 ```
 bbbmanager/
 ├── prisma/
+<<<<<<< Updated upstream
 │   ├── schema.prisma          # 5 modeles (User, BbbServer, MoodlePlatform, Recording, RebuildJob)
 │   └── migrations/            # Historique des migrations
 ├── src/
@@ -335,6 +388,54 @@ bbbmanager/
 ├── .env                            # Variables d'env (NE PAS COMMITTER)
 ├── .env.example                    # Template avec instructions
 ├── next.config.ts                  # Config Next.js + serverExternalPackages
+=======
+│   ├── schema.prisma                # 5 modeles (User, BbbServer, MoodlePlatform, Recording, RebuildJob)
+│   └── migrations/                  # Historique des migrations
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── auth/[...nextauth]/  # Authentification NextAuth/Keycloak
+│   │   │   ├── health/              # Verification de sante
+│   │   │   ├── me/                  # Session courante
+│   │   │   ├── public-stats/        # Stats anonymes (page login)
+│   │   │   ├── rebuild/             # Publication unitaire
+│   │   │   ├── rebuild-batch/       # Publication en masse via CSV
+│   │   │   ├── recordings/          # Liste + detail + synchronisation
+│   │   │   ├── servers/             # CRUD serveurs BBB
+│   │   │   ├── moodle-platforms/    # CRUD plateformes Moodle
+│   │   │   ├── moodle-search/       # Diagnostic croise Moodle ↔ BBB
+│   │   │   ├── stats/               # Stats dashboard (filtrables)
+│   │   │   └── users/               # Gestion des utilisateurs
+│   │   ├── (dashboard)/             # Pages protegees (layout commun)
+│   │   │   ├── page.tsx             # Dashboard
+│   │   │   ├── recordings/          # Liste + detail enregistrement
+│   │   │   ├── rebuild/             # Publication CSV (admin)
+│   │   │   ├── servers/             # Serveurs BBB
+│   │   │   ├── moodle-platforms/    # Plateformes Moodle
+│   │   │   ├── moodle-search/       # Recherche cours
+│   │   │   └── users/               # Utilisateurs (admin)
+│   │   └── login/                   # Page de connexion
+│   ├── components/
+│   │   ├── DashboardClient.tsx      # Dashboard (filtre serveur + repartition par etat)
+│   │   ├── Footer.tsx               # Footer UN-CHK
+│   │   ├── LoginClient.tsx          # Page login (design split)
+│   │   ├── RebuildButton.tsx        # Bouton publication (admin)
+│   │   ├── Sidebar.tsx              # Navigation avec masquage admin-only
+│   │   └── SyncButton.tsx           # Bouton synchronisation manuelle
+│   ├── lib/
+│   │   ├── auth.ts                  # Configuration NextAuth + deconnexion Keycloak
+│   │   ├── bbb.ts                   # Client API BigBlueButton (checksum SHA-256)
+│   │   ├── constants.ts             # Constantes centralisees
+│   │   ├── crypto.ts                # Chiffrement AES-256-GCM + validation au demarrage
+│   │   ├── moodle.ts                # Client REST Moodle Web Services + parser HTML
+│   │   ├── prisma.ts                # Instance Prisma (singleton + adapter pg)
+│   │   └── ssh.ts                   # Module SSH (prepare, non utilise)
+│   ├── middleware.ts                # Protection routes + check isActive
+│   └── types/                       # Types TypeScript (session NextAuth)
+├── .env                             # Variables d'env (NE PAS COMMITTER)
+├── .env.example                     # Template avec instructions
+├── next.config.ts                   # Configuration Next.js
+>>>>>>> Stashed changes
 ├── package.json
 └── pnpm-lock.yaml
 ```
@@ -342,6 +443,7 @@ bbbmanager/
 ## Schema de la base de donnees
 
 5 tables principales :
+<<<<<<< Updated upstream
 
 | Table | Description |
 |-------|-------------|
@@ -359,6 +461,16 @@ bbbmanager/
 - `recordings(start_time)` pour les filtres de date
 - `recordings(server_id, state)` pour les filtres combines
 - `rebuild_jobs(recording_id, status)` pour l'historique detail enregistrement
+=======
+
+- **users** : utilisateurs synchronises depuis Keycloak (kcSub, role, isActive)
+- **bbb_servers** : serveurs BBB enregistres (URL, secret chiffre, optionnels SSH)
+- **moodle_platforms** : plateformes Moodle (URL, token chiffre, nom du service, utilisateur Web Service, nom du site)
+- **recordings** : enregistrements synchronises (recordId, state, durationSec, published, rawData)
+- **rebuild_jobs** : historique des jobs de publication (status, user, timestamps, errorMsg)
+
+**Cascade delete** : la suppression d'un serveur BBB supprime automatiquement ses recordings et rebuild_jobs (via `onDelete: Cascade`).
+>>>>>>> Stashed changes
 
 ## Etats des enregistrements BBB
 
@@ -370,10 +482,51 @@ bbbmanager/
 | `unpublished` | Retire de la lecture | **Re-publier** (si duree >= 10 min) |
 | `deleted` | Supprime du serveur | Aucune |
 
+## Diagnostic Moodle ↔ BBB
+
+La page `/moodle-search` permet de croiser les enregistrements visibles cote Moodle avec ceux en base BBB Manager pour identifier les sessions a rebuilder.
+
+### Cas d'usage
+
+Un enseignant signale qu'une session Moodle ne s'affiche pas. L'admin DITSI :
+
+1. Ouvre **Recherche cours**
+2. Choisit le critere de recherche (4 options) :
+   - **Nom de l'activite BBB** (ex: `Salle de TD`)
+   - **ID du module / cmid** (ex: `143` issu de `view.php?id=143`)
+   - **Record ID BBB** (ex: `abc123...-1773327151076`)
+   - **Shortname du cours** (ex: `DISI`)
+3. Le systeme affiche un tableau croise avec :
+   - **Moodle + BBB** (vert) : tout est OK
+   - **Moodle seul** (orange) : enregistrement vu par Moodle mais absent de la base BBB → candidat au rebuild
+   - **BBB seul** (bleu) : enregistrement en base BBB mais que Moodle ne voit plus
+
+### Validation des inputs
+
+Pour eviter les injections, chaque type de recherche a une regex stricte de validation, cote serveur ET client :
+
+| Type | Regex | Exemple valide |
+|------|-------|----------------|
+| `cmid` | `^\d{1,10}$` | `143` |
+| `recordId` | `^[a-f0-9]{40}-\d{10,13}$` | `abc...40hex...-1773327151076` |
+| `shortname` | `^[A-Za-z0-9._-]{1,100}$` | `DISI`, `AES1123` |
+| `activityName` | `^[\p{L}\p{N}\s'._-]{2,100}$` | `Salle de TD` |
+
+### Fonctions Moodle utilisees
+
+| Fonction Moodle | Quand |
+|-----------------|-------|
+| `core_webservice_get_site_info` | Test de connexion a l'ajout d'une plateforme |
+| `core_course_get_courses_by_field` | Recherche par shortname / id de cours |
+| `core_course_get_course_module` | Resolution cmid → activite BBB |
+| `mod_bigbluebuttonbn_get_bigbluebuttonbns_by_courses` | Liste des activites BBB d'un cours |
+| `mod_bigbluebuttonbn_get_recordings` | Recordings vus par Moodle (HTML parse pour extraire les recordIDs BBB) |
+
 ## API endpoints
 
 | Methode | Route | Role | Description |
 |---------|-------|------|-------------|
+<<<<<<< Updated upstream
 | GET | `/api/health` | - | Verification de sante (DB) |
 | GET | `/api/public-stats` | - | Stats anonymes pour la page login (rate limit 20/min/IP) |
 | GET | `/api/me` | auth | Infos de la session courante |
@@ -399,6 +552,33 @@ bbbmanager/
 
 - **admin** : acces complet — gestion serveurs BBB, plateformes Moodle, utilisateurs, publication (unitaire et en masse)
 - **auditeur** : consultation seule — dashboard, liste des serveurs et plateformes (sans modification), liste et detail des enregistrements, statistiques
+=======
+| GET | `/api/health` | Non | Verification de sante (DB) |
+| GET | `/api/public-stats` | Non | Stats anonymes pour la page login (servers, recordings, publishRate) |
+| GET | `/api/me` | Oui | Infos de la session courante (id, role, fullName, email) |
+| GET | `/api/stats?serverId=` | Oui | Statistiques du dashboard, filtrables par serveur |
+| GET | `/api/recordings?page=&filter=&serverId=&dateFrom=&dateTo=&search=` | Oui | Liste paginee + filtres |
+| GET | `/api/recordings/:id` | Oui | Detail d'un enregistrement (metadata + historique jobs) |
+| POST | `/api/recordings/sync` | Oui | Synchronise depuis tous les serveurs BBB actifs |
+| POST | `/api/rebuild` | Admin | Publie un enregistrement (processed/unpublished) |
+| POST | `/api/rebuild-batch` | Admin | Publie jusqu'a 200 record IDs avec mapping serveur automatique |
+| GET | `/api/servers` | Oui | Liste des serveurs (sans secrets) |
+| POST | `/api/servers` | Admin | Ajoute un serveur BBB (avec test de connexion) |
+| PUT | `/api/servers/:id` | Admin | Modifie un serveur |
+| DELETE | `/api/servers/:id` | Admin | Supprime un serveur (cascade sur recordings + jobs) |
+| GET | `/api/moodle-platforms` | Oui | Liste des plateformes Moodle (sans tokens) |
+| POST | `/api/moodle-platforms` | Admin | Ajoute une plateforme Moodle (avec test via getSiteInfo) |
+| PUT | `/api/moodle-platforms/:id` | Admin | Modifie une plateforme |
+| DELETE | `/api/moodle-platforms/:id` | Admin | Supprime une plateforme (sans toucher Moodle) |
+| GET | `/api/moodle-search?platformId=&type=&value=` | Oui | Diagnostic croise Moodle ↔ BBB (4 types : cmid, recordId, activityName, shortname) |
+| GET | `/api/users` | Admin | Liste des utilisateurs |
+| PATCH | `/api/users/:id` | Admin | Modifie role/statut d'un utilisateur |
+
+## Roles
+
+- **admin** : acces complet (gestion serveurs, utilisateurs, publication)
+- **auditeur** : consultation seule (dashboard, enregistrements, statistiques)
+>>>>>>> Stashed changes
 
 Le premier utilisateur est cree avec le role `auditeur`. Un admin existant doit le promouvoir depuis la page Utilisateurs.
 
@@ -449,6 +629,7 @@ redis-cli -u "$REDIS_URL" get bbbmanager:sync:last-auto-result | jq .
 
 ## Securite
 
+<<<<<<< Updated upstream
 - **Chiffrement** : les secrets des serveurs BBB et les tokens Moodle sont chiffres en AES-256-GCM avant stockage
 - **Validation au demarrage** : l'application refuse de demarrer si `ENCRYPTION_KEY` est absente ou mal formee
 - **Authentification** : SSO Keycloak — aucun mot de passe stocke localement
@@ -462,5 +643,19 @@ redis-cli -u "$REDIS_URL" get bbbmanager:sync:last-auto-result | jq .
 - **Le fichier `.env`** : contient les secrets et ne doit **jamais** etre committe
 
 ## Licence et credits
+=======
+- **Chiffrement AES-256-GCM** : secrets BBB et tokens Moodle chiffres en base
+- **Validation au demarrage** : l'application refuse de demarrer si `ENCRYPTION_KEY` est absente ou mal formee (fail fast)
+- **Authentification SSO Keycloak** : aucun mot de passe stocke localement
+- **Deconnexion complete** : invalide aussi la session cote Keycloak via `end_session_endpoint`
+- **Middleware** : verifie authentification + statut actif du compte a chaque requete
+- **RBAC** : roles admin/auditeur verifies sur chaque endpoint sensible cote API + masques cote UI
+- **Validation stricte des inputs** : regex par type sur tous les champs de recherche (serveur ET client)
+- **Pas de parsing d'URL** dans la recherche Moodle : seuls des inputs typés et validés sont acceptes
+- **Prisma** : protection contre les injections SQL (requetes parametrees)
+- **Le fichier `.env`** : contient les secrets et ne doit **jamais** etre committe
+
+---
+>>>>>>> Stashed changes
 
 DITSI - Universite Numerique Cheikh Hamidou Kane (UN-CHK) - 2026

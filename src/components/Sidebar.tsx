@@ -10,16 +10,30 @@ import {
   UsersIcon,
   ArrowUpTrayIcon,
   AcademicCapIcon,
+<<<<<<< Updated upstream
+=======
+  MagnifyingGlassIcon,
+>>>>>>> Stashed changes
 } from '@heroicons/react/24/outline'
 import { clsx } from 'clsx'
 
 const navItems = [
+<<<<<<< Updated upstream
   { href: '/',                  label: 'Dashboard',         icon: HomeIcon,          adminOnly: false },
   { href: '/servers',           label: 'Serveurs BBB',      icon: ServerIcon,        adminOnly: false },
   { href: '/moodle-platforms',  label: 'Plateformes Moodle',icon: AcademicCapIcon,   adminOnly: false },
   { href: '/recordings',        label: 'Enregistrements',   icon: FilmIcon,          adminOnly: false },
   { href: '/rebuild',           label: 'Publication CSV',   icon: ArrowUpTrayIcon,   adminOnly: true },
   { href: '/users',             label: 'Utilisateurs',      icon: UsersIcon,         adminOnly: true },
+=======
+  { href: '/',                  label: 'Dashboard',          icon: HomeIcon,             adminOnly: false },
+  { href: '/servers',           label: 'Serveurs BBB',       icon: ServerIcon,           adminOnly: false },
+  { href: '/moodle-platforms',  label: 'Plateformes Moodle', icon: AcademicCapIcon,      adminOnly: false },
+  { href: '/moodle-search',     label: 'Recherche cours',    icon: MagnifyingGlassIcon,  adminOnly: false },
+  { href: '/recordings',        label: 'Enregistrements',    icon: FilmIcon,             adminOnly: false },
+  { href: '/rebuild',           label: 'Publication CSV',    icon: ArrowUpTrayIcon,      adminOnly: true },
+  { href: '/users',             label: 'Utilisateurs',       icon: UsersIcon,            adminOnly: true },
+>>>>>>> Stashed changes
 ]
 
 export default function Sidebar({
