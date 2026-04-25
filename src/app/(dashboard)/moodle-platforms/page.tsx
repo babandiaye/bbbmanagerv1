@@ -11,6 +11,7 @@ type Platform = {
   serviceName: string | null
   wsUsername: string | null
   siteName: string | null
+  bbbOriginServerName: string | null
   lastCheckAt: string | null
   isActive: boolean
   createdAt: string
@@ -21,7 +22,9 @@ export default function MoodlePlatformsPage() {
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', url: '', token: '', serviceName: '' })
+  const [form, setForm] = useState({ name: '', url: '', token: '', serviceName: '', bbbOriginServerName: '' })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editOrigin, setEditOrigin] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -52,10 +55,11 @@ export default function MoodlePlatformsPage() {
       if (!res.ok) {
         setError(data.error ?? 'Erreur lors de l\'ajout')
       } else {
-        setMessage(
-          `Plateforme "${data.name}" ajoutée. Connecté en tant que ${data.wsUser} (${data.sitename}).`,
-        )
-        setForm({ name: '', url: '', token: '', serviceName: '' })
+        const originPart = data.bbbOriginServerName
+          ? ` Origine BBB ${data.originAutoDetected ? 'auto-détectée' : 'configurée'} : ${data.bbbOriginServerName}.`
+          : ' ⚠ Origine BBB non détectée — modifiez la plateforme pour la définir manuellement.'
+        setMessage(`Plateforme "${data.name}" ajoutée. Connecté en tant que ${data.wsUser} (${data.sitename}).${originPart}`)
+        setForm({ name: '', url: '', token: '', serviceName: '', bbbOriginServerName: '' })
         setShowForm(false)
         loadPlatforms()
       }
@@ -73,6 +77,34 @@ export default function MoodlePlatformsPage() {
       body: JSON.stringify({ isActive: !isActive }),
     })
     loadPlatforms()
+  }
+
+  async function handleSaveOrigin(id: string) {
+    setMessage('')
+    setError('')
+    try {
+      const res = await fetch(`/api/moodle-platforms/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bbbOriginServerName: editOrigin.trim() || null }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error ?? 'Modification impossible')
+      } else {
+        setMessage('Origine BBB mise à jour.')
+        setEditingId(null)
+        setEditOrigin('')
+        await loadPlatforms()
+      }
+    } catch {
+      setError('Erreur de connexion au serveur')
+    }
+  }
+
+  function startEditOrigin(p: Platform) {
+    setEditingId(p.id)
+    setEditOrigin(p.bbbOriginServerName ?? '')
   }
 
   async function handleDelete(id: string, name: string) {
@@ -181,23 +213,35 @@ export default function MoodlePlatformsPage() {
               />
             </div>
           </div>
-          <div className="mb-4">
-            <label className="block text-xs text-gray-500 mb-1">
-              Nom du service Moodle <span className="text-gray-400">(optionnel)</span>
-            </label>
-            <input
-              type="text"
-              placeholder="BBBManagerDISIDEV"
-              value={form.serviceName}
-              onChange={(e) => setForm({ ...form, serviceName: e.target.value })}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-[11px] text-gray-400 mt-1">
-              Nom du service configuré dans Moodle (Site administration → Services web → Services externes). Utile pour retrouver la config plus tard.
-            </p>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Nom du service Moodle <span className="text-gray-400">(optionnel)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="BBBManagerDISIDEV"
+                value={form.serviceName}
+                onChange={(e) => setForm({ ...form, serviceName: e.target.value })}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Origine BBB <span className="text-gray-400">(optionnel — auto-détectée sinon)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="moodleXXXX.unchk.sn"
+                value={form.bbbOriginServerName}
+                onChange={(e) => setForm({ ...form, bbbOriginServerName: e.target.value })}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              />
+            </div>
           </div>
           <p className="text-xs text-gray-400 mb-4">
-            L&apos;URL doit être l&apos;adresse de base de Moodle (sans <code className="font-mono">/webservice/rest/server.php</code>). La connexion est testée avant enregistrement.
+            L&apos;URL doit être l&apos;adresse de base de Moodle (sans <code className="font-mono">/webservice/rest/server.php</code>).
+            L&apos;<strong>origine BBB</strong> correspond au champ <code className="font-mono">bbb-origin-server-name</code> dans les metadata.xml des recordings BBB ; elle identifie de façon unique cette plateforme et empêche les fuites entre Moodles. Si vous la laissez vide, le système tentera de la détecter automatiquement.
           </p>
           <div className="flex gap-2 justify-end">
             <button
@@ -305,6 +349,41 @@ export default function MoodlePlatformsPage() {
                     <p className="text-gray-700 font-mono">{p.wsUsername}</p>
                   </div>
                 )}
+                <div className="col-span-2">
+                  <p className="text-gray-400 mb-0.5 flex items-center gap-2">
+                    Origine BBB <span className="text-[10px] font-normal">(bbb-origin-server-name)</span>
+                  </p>
+                  {editingId === p.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editOrigin}
+                        onChange={(e) => setEditOrigin(e.target.value)}
+                        placeholder="moodleXXXX.unchk.sn"
+                        className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 font-mono focus:outline-none focus:border-blue-300"
+                      />
+                      <button onClick={() => handleSaveOrigin(p.id)} className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded">
+                        Enregistrer
+                      </button>
+                      <button onClick={() => { setEditingId(null); setEditOrigin('') }} className="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                        Annuler
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {p.bbbOriginServerName ? (
+                        <p className="text-gray-700 font-mono">{p.bbbOriginServerName}</p>
+                      ) : (
+                        <p className="text-orange-600 italic">non défini — risque de fuite entre plateformes</p>
+                      )}
+                      {isAdmin && (
+                        <button onClick={() => startEditOrigin(p)} className="text-xs text-blue-600 hover:underline">
+                          modifier
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div>
                   <p className="text-gray-400 mb-0.5">Ajoutée le</p>
                   <p className="text-gray-700">{formatDate(p.createdAt)}</p>

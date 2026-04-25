@@ -126,3 +126,129 @@ export async function getBBBActivitiesByCourses(
   )
   return result.bigbluebuttonbns ?? []
 }
+
+// ─────────────────────────────────────────────────────────────────────
+//  Résolution d'un cmid (course module id) vers son activité BBB
+// ─────────────────────────────────────────────────────────────────────
+
+export type MoodleCourseModule = {
+  id: number
+  course: number
+  module: number
+  name: string
+  modname: string
+  instance: number
+  section: number
+  visible: number
+  [key: string]: any
+}
+
+export async function getCourseModule(
+  baseUrl: string,
+  token: string,
+  cmid: number,
+): Promise<MoodleCourseModule | null> {
+  try {
+    const res = await moodleCall<{ cm: MoodleCourseModule; warnings: any[] }>(
+      baseUrl,
+      token,
+      'core_course_get_course_module',
+      { cmid },
+    )
+    return res.cm ?? null
+  } catch {
+    return null
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Recordings via mod_bigbluebuttonbn_get_recordings
+//  Moodle retourne du HTML (DataTable). On parse pour extraire les champs.
+// ─────────────────────────────────────────────────────────────────────
+
+export type MoodleRecording = {
+  moodleId: string
+  recordId: string | null
+  name: string
+  description: string
+  publishedOnMoodle: boolean
+  imported: boolean
+  playbackUrls: string[]
+  startTimeMs: number | null
+  durationMin: number | null
+}
+
+function stripHtml(html: unknown): string {
+  if (typeof html !== 'string') return String(html ?? '')
+  return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function parseRecordingRow(row: any): MoodleRecording {
+  const actionbar: string = typeof row.actionbar === 'string' ? row.actionbar : ''
+  const playback: string = typeof row.playback === 'string' ? row.playback : ''
+  const recordingCol: string = typeof row.recording === 'string' ? row.recording : ''
+  const descriptionCol: string = typeof row.description === 'string' ? row.description : ''
+
+  const moodleIdMatch = actionbar.match(/data-recordingid="(\d+)"/)
+                     ?? recordingCol.match(/data-itemid="(\d+)"/)
+  const moodleId = moodleIdMatch?.[1] ?? ''
+
+  const recordIdMatch = actionbar.match(
+    /id="recording-(?:publish|unpublish|delete|import|protect|unprotect)-([a-f0-9]{40}-\d+)"/,
+  )
+  const recordId = recordIdMatch?.[1] ?? null
+
+  const publishedOnMoodle = /id="recording-publish-[^"]+"\s+class="[^"]*\bdisabled\b/.test(actionbar)
+
+  const importedMatch = playback.match(/data-imported="(\d)"/)
+  const imported = importedMatch?.[1] === '1'
+
+  const playbackUrls: string[] = []
+  const hrefRegex = /href="(https?:\/\/[^"]+)"/g
+  let m: RegExpExecArray | null
+  while ((m = hrefRegex.exec(playback)) !== null) {
+    playbackUrls.push(m[1].replace(/&amp;/g, '&'))
+  }
+
+  const nameMatch = recordingCol.match(/data-value="([^"]*)"/)
+  const name = nameMatch?.[1] ?? stripHtml(recordingCol)
+
+  const descMatch = descriptionCol.match(/data-value="([^"]*)"/)
+  const description = descMatch?.[1] ?? ''
+
+  const startTimeMs = typeof row.date === 'number' ? row.date : Number(row.date) || null
+  const durationMin = typeof row.duration === 'number' ? row.duration : Number(row.duration) || null
+
+  return {
+    moodleId,
+    recordId,
+    name,
+    description,
+    publishedOnMoodle,
+    imported,
+    playbackUrls,
+    startTimeMs,
+    durationMin,
+  }
+}
+
+export async function getRecordingsForActivity(
+  baseUrl: string,
+  token: string,
+  bigbluebuttonbnid: number,
+): Promise<MoodleRecording[]> {
+  const res = await moodleCall<{
+    status: boolean
+    tabledata: { data: string }
+    warnings: any[]
+  }>(baseUrl, token, 'mod_bigbluebuttonbn_get_recordings', { bigbluebuttonbnid })
+
+  if (!res.status || !res.tabledata?.data) return []
+  let rows: any[]
+  try {
+    rows = JSON.parse(res.tabledata.data)
+  } catch {
+    return []
+  }
+  return rows.map(parseRecordingRow).filter(r => r.moodleId)
+}

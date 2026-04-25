@@ -7,40 +7,19 @@ import {
   getBBBActivitiesByCourses,
   getCourseModule,
   getRecordingsForActivity,
-  getAllBBBActivities,
   type MoodleCourse,
   type MoodleBBBActivity,
   type MoodleRecording,
 } from '@/lib/moodle'
 
-type SearchType = 'cmid' | 'recordId' | 'activityName' | 'shortname'
+type SearchType = 'cmid' | 'recordId'
 
-/** Validation stricte de l'input selon le type. Renvoie null si invalide. */
 function validateInput(type: SearchType, raw: string): string | null {
   const v = raw.trim()
   if (!v) return null
-
-  switch (type) {
-    case 'cmid':
-      // Numérique uniquement, max 10 chiffres
-      return /^\d{1,10}$/.test(v) ? v : null
-
-    case 'recordId':
-      // SHA1 hex (40 chars) + '-' + timestamp (10-13 chiffres)
-      return /^[a-f0-9]{40}-\d{10,13}$/.test(v) ? v : null
-
-    case 'shortname':
-      // Alphanumérique + tirets + underscores + points, max 100 chars
-      return /^[A-Za-z0-9._-]{1,100}$/.test(v) ? v : null
-
-    case 'activityName':
-      // Texte libre mais limité (lettres, chiffres, espaces, accents, ponctuation basique)
-      // Max 100 chars, au moins 2 chars
-      return v.length >= 2 && v.length <= 100 && /^[\p{L}\p{N}\s'._-]+$/u.test(v) ? v : null
-
-    default:
-      return null
-  }
+  if (type === 'cmid')     return /^\d{1,10}$/.test(v) ? v : null
+  if (type === 'recordId') return /^[a-f0-9]{40}-\d{10,13}$/.test(v) ? v : null
+  return null
 }
 
 type EnrichedRecording = {
@@ -81,9 +60,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'platformId, type et value requis' }, { status: 400 })
   }
 
-  const validTypes: SearchType[] = ['cmid', 'recordId', 'activityName', 'shortname']
-  if (!validTypes.includes(type)) {
-    return NextResponse.json({ error: `Type invalide. Valeurs : ${validTypes.join(', ')}` }, { status: 400 })
+  if (type !== 'cmid' && type !== 'recordId') {
+    return NextResponse.json({ error: 'Type invalide. Valeurs : cmid, recordId' }, { status: 400 })
   }
 
   const value = validateInput(type, rawValue)
@@ -108,91 +86,81 @@ export async function GET(req: NextRequest) {
 
   try {
     if (type === 'cmid') {
+      // 1) Résoudre le cmid → course module
       const cm = await getCourseModule(platform.url, token, parseInt(value, 10))
       if (!cm) {
         return NextResponse.json({ error: `Module ${value} introuvable sur Moodle` }, { status: 404 })
       }
       if (cm.modname !== 'bigbluebuttonbn') {
-        return NextResponse.json({ error: `Le module ${value} n'est pas une activité BigBlueButton (type: ${cm.modname})` }, { status: 400 })
-      }
-      courses = await getCoursesByField(platform.url, token, 'id', cm.course)
-      activities = [{ id: cm.instance, course: cm.course, name: cm.name, meetingid: '', coursemodule: cm.id }]
-      moodleRecordings = await getRecordingsForActivity(platform.url, token, cm.instance)
-
-    } else if (type === 'shortname') {
-      courses = await getCoursesByField(platform.url, token, 'shortname', value)
-      if (courses.length > 0) {
-        activities = await getBBBActivitiesByCourses(platform.url, token, courses.map(c => c.id))
-        const chunks = await Promise.all(
-          activities.map(a => getRecordingsForActivity(platform.url, token, a.id).catch(() => [])),
+        return NextResponse.json(
+          { error: `Le module ${value} n'est pas une activité BigBlueButton (type: ${cm.modname})` },
+          { status: 400 },
         )
-        moodleRecordings = chunks.flat()
       }
 
-    } else if (type === 'activityName') {
-      // Recherche par nom : récupérer toutes les activités, filtrer
-      const allActivities = await getAllBBBActivities(platform.url, token)
-      const needle = value.toLowerCase()
-      activities = allActivities.filter(a => (a.name ?? '').toLowerCase().includes(needle))
-      if (activities.length === 0) {
-        return NextResponse.json({
-          platform: { id: platform.id, name: platform.name, siteName: platform.siteName, url: platform.url },
-          input: { type, value },
-          courses: [], activities: [], probableServer: null, recordings: [],
-          summary: { total: 0, synced: 0, moodleOnly: 0, bbbOnly: 0 },
-        })
-      }
-      // Récupérer les cours associés
-      const uniqueCourseIds = [...new Set(activities.map(a => a.course))]
-      const courseChunks = await Promise.all(
-        uniqueCourseIds.map(id => getCoursesByField(platform.url, token, 'id', id).catch(() => [])),
-      )
-      courses = courseChunks.flat()
-      // Recordings Moodle de chaque activité
-      const chunks = await Promise.all(
-        activities.map(a => getRecordingsForActivity(platform.url, token, a.id).catch(() => [])),
-      )
-      moodleRecordings = chunks.flat()
+      // 2) Récupérer le cours pour affichage
+      courses = await getCoursesByField(platform.url, token, 'id', cm.course)
 
-    } else if (type === 'recordId') {
-      // Recherche directe par recordID — pas d'appel Moodle, on cherche en base.
-      // On pourra essayer ensuite de retrouver le cours via bbb-context-id.
+      // 3) Récupérer l'activité BBB AVEC son vrai meetingid (essentiel pour le filtre précis)
+      const allCourseActivities = await getBBBActivitiesByCourses(platform.url, token, [cm.course])
+      const matched = allCourseActivities.find(a => a.id === cm.instance)
+      activities = matched
+        ? [matched]
+        : [{ id: cm.instance, course: cm.course, name: cm.name, meetingid: '', coursemodule: cm.id }]
+
+      // 4) Recordings vus par Moodle pour cette activité
+      moodleRecordings = await getRecordingsForActivity(platform.url, token, cm.instance)
     }
+    // type === 'recordId' : pas d'appel Moodle nécessaire, on cherche en base
   } catch (err: any) {
     return NextResponse.json({ error: `Erreur Moodle : ${err.message}` }, { status: 400 })
   }
 
   // ─── Recherche en base BBB Manager ──────────────────────────────────
   const meetingIdPrefixes = activities.map(a => a.meetingid).filter(Boolean)
-  const courseIds = courses.map(c => String(c.id))
   const moodleRecordIds = moodleRecordings.map(r => r.recordId).filter((x): x is string => !!x)
 
   const orConditions: any[] = []
   if (type === 'recordId') {
     orConditions.push({ recordId: value })
   } else {
+    // Filtres précis (préfixe meetingId + recordIds vus par Moodle).
+    // Le préfixe meetingId peut entrer en collision entre plateformes Moodle
+    // → on filtre EN PLUS par bbb-origin-server-name si la plateforme l'a configuré.
     for (const m of meetingIdPrefixes) orConditions.push({ meetingId: { startsWith: m } })
-    for (const cid of courseIds) {
-      orConditions.push({ rawData: { path: ['metadata', 'bbb-context-id'], equals: cid } })
-    }
     for (const rid of moodleRecordIds) orConditions.push({ recordId: rid })
   }
 
-  const bbbRecordings = orConditions.length === 0 ? [] : await prisma.recording.findMany({
-    where: { OR: orConditions },
+  // Filtre AND par bbb-origin-server-name pour éviter les fuites entre plateformes.
+  // Si la plateforme n'a pas encore cette valeur configurée, on n'applique pas le filtre
+  // (compromis : risque de collision, mais on retourne quand même un résultat).
+  const baseWhere: any = orConditions.length === 0 ? null : { OR: orConditions }
+  if (baseWhere && type !== 'recordId' && platform.bbbOriginServerName) {
+    baseWhere.AND = [
+      {
+        rawData: {
+          path: ['metadata', 'bbb-origin-server-name'],
+          equals: platform.bbbOriginServerName,
+        },
+      },
+    ]
+  }
+
+  const bbbRecordings = baseWhere === null ? [] : await prisma.recording.findMany({
+    where: baseWhere,
     include: { server: { select: { name: true, url: true } } },
     orderBy: { startTime: 'desc' },
     take: 500,
   })
 
-  // ─── Croisement ─────────────────────────────────────────────────────
+  // ─── Croisement Moodle ↔ BBB Manager ────────────────────────────────
   const bbbByRecordId = new Map(bbbRecordings.map(r => [r.recordId, r]))
   const moodleByRecordId = new Map(
     moodleRecordings.filter(r => r.recordId).map(r => [r.recordId!, r]),
   )
   const allRecordIds = new Set<string>([...moodleByRecordId.keys(), ...bbbByRecordId.keys()])
 
-  // Serveur le plus probable
+  // Serveur BBB le plus probable (utile pour les orphelins Moodle)
   const serverCount = new Map<string, { url: string; name: string; count: number }>()
   for (const r of bbbRecordings) {
     const k = r.server.name
@@ -251,12 +219,21 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    platform: { id: platform.id, name: platform.name, siteName: platform.siteName, url: platform.url },
+    platform: {
+      id: platform.id,
+      name: platform.name,
+      siteName: platform.siteName,
+      url: platform.url,
+      bbbOriginServerName: platform.bbbOriginServerName,
+    },
     input: { type, value },
     courses,
     activities,
     probableServer: probableServer ? { name: probableServer.name, url: probableServer.url } : null,
     recordings: enriched,
     summary,
+    warning: !platform.bbbOriginServerName && type !== 'recordId'
+      ? 'Le filtre par plateforme n\'est pas configuré (bbb-origin-server-name manquant). Risque de fuite entre plateformes Moodle. Modifier la plateforme pour le définir.'
+      : undefined,
   })
 }

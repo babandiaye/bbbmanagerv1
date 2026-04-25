@@ -34,17 +34,20 @@ model User {
 }
 
 model MoodlePlatform {
-  id          String    @id @default(uuid())
-  name        String
-  url         String
-  tokenEnc    String    @map("token_enc")
-  serviceName String?   @map("service_name")
-  wsUsername  String?   @map("ws_username")
-  siteName    String?   @map("site_name")
-  lastCheckAt DateTime? @map("last_check_at")
-  isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id                  String    @id @default(uuid())
+  name                String
+  url                 String
+  tokenEnc            String    @map("token_enc")
+  serviceName         String?   @map("service_name")
+  wsUsername          String?   @map("ws_username")
+  siteName            String?   @map("site_name")
+  // Identifiant unique de la plateforme cote BBB (metadata bbb-origin-server-name)
+  // Sert a filtrer les recordings d'une plateforme dans la recherche Moodle.
+  bbbOriginServerName String?   @map("bbb_origin_server_name")
+  lastCheckAt         DateTime? @map("last_check_at")
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   @@map("moodle_platforms")
 }

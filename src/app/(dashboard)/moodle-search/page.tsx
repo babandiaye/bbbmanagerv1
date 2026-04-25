@@ -15,7 +15,7 @@ import {
 
 type Platform = { id: string; name: string; url: string; siteName: string | null; isActive: boolean }
 
-type SearchType = 'cmid' | 'recordId' | 'activityName' | 'shortname'
+type SearchType = 'cmid' | 'recordId'
 
 type EnrichedRecording = {
   recordId: string
@@ -43,22 +43,17 @@ type EnrichedRecording = {
 }
 
 type SearchResponse = {
-  platform: { id: string; name: string; siteName: string | null; url: string }
+  platform: { id: string; name: string; siteName: string | null; url: string; bbbOriginServerName: string | null }
   input: { type: SearchType; value: string }
   courses: Array<{ id: number; shortname: string; fullname: string }>
   activities: Array<{ id: number; course: number; name: string; meetingid: string }>
   probableServer: { name: string; url: string } | null
   recordings: EnrichedRecording[]
   summary: { total: number; synced: number; moodleOnly: number; bbbOnly: number }
+  warning?: string
 }
 
 const SEARCH_TYPES: Array<{ value: SearchType; label: string; placeholder: string; help: string }> = [
-  {
-    value: 'activityName',
-    label: 'Nom de l\'activité BBB',
-    placeholder: 'Salle de TD',
-    help: 'Recherche dans le nom des activités BigBlueButton (insensible à la casse).',
-  },
   {
     value: 'cmid',
     label: 'ID du module (cmid)',
@@ -70,12 +65,6 @@ const SEARCH_TYPES: Array<{ value: SearchType; label: string; placeholder: strin
     label: 'Record ID BBB',
     placeholder: 'abc123def...-1773327151076',
     help: 'L\'identifiant complet d\'un enregistrement BBB (40 caractères hex + tiret + timestamp).',
-  },
-  {
-    value: 'shortname',
-    label: 'Shortname du cours',
-    placeholder: 'DISI',
-    help: 'Le code court du cours Moodle (catalogue → champ « Nom abrégé »).',
   },
 ]
 
@@ -89,14 +78,6 @@ function validateClient(type: SearchType, value: string): string | null {
       return null
     case 'recordId':
       if (!/^[a-f0-9]{40}-\d{10,13}$/.test(v)) return 'Format attendu : 40 chars hex + tiret + timestamp'
-      return null
-    case 'shortname':
-      if (!/^[A-Za-z0-9._-]{1,100}$/.test(v)) return 'Lettres, chiffres, tiret, underscore, point uniquement'
-      return null
-    case 'activityName':
-      if (v.length < 2) return 'Minimum 2 caractères'
-      if (v.length > 100) return 'Maximum 100 caractères'
-      if (!/^[\p{L}\p{N}\s'._-]+$/u.test(v)) return 'Caractères invalides'
       return null
   }
 }
@@ -273,6 +254,19 @@ export default function MoodleSearchPage() {
 
       {result && (
         <>
+          {/* Warning : pas de filtre par plateforme configuré */}
+          {result.warning && (
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm rounded-lg px-4 py-3 mb-4 flex items-start gap-3">
+              <ExclamationTriangleIcon className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium">{result.warning}</p>
+                <p className="text-xs mt-1">
+                  Aller dans <Link href="/moodle-platforms" className="underline">Plateformes Moodle</Link> et renseigner le champ &quot;Origine BBB&quot; pour cette plateforme.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Bandeau contexte */}
           <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 mb-4 text-xs text-blue-900">
             {result.courses.length > 0 && <>Cours : <strong>{result.courses[0].shortname}</strong> ({result.courses[0].fullname})</>}
@@ -283,6 +277,9 @@ export default function MoodleSearchPage() {
                   : <><strong>{result.activities.length}</strong> activités BBB trouvées</>
                 }
               </>
+            )}
+            {result.platform.bbbOriginServerName && (
+              <> — <span className="font-mono text-[10px] bg-blue-100 px-1.5 py-0.5 rounded">{result.platform.bbbOriginServerName}</span></>
             )}
           </div>
 

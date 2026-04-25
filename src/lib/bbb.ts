@@ -74,6 +74,31 @@ export async function getRecordings(baseUrl: string, secret: string): Promise<an
   return allRecordings
 }
 
+/**
+ * Cherche un recording par son recordID exact sur un serveur BBB.
+ * Retourne l'objet recording si trouvé, null sinon.
+ * Utilise state=any pour récupérer aussi les processing/processed/unpublished.
+ */
+export async function findRecordingById(
+  baseUrl: string,
+  secret: string,
+  recordId: string,
+): Promise<any | null> {
+  try {
+    const response = await bbbCall(baseUrl, secret, 'getRecordings', {
+      state: 'any',
+      recordID: recordId,
+    })
+    if (response.returncode !== 'SUCCESS') return null
+    const recordings = response.recordings?.recording
+    if (!recordings) return null
+    const arr = Array.isArray(recordings) ? recordings : [recordings]
+    return arr.find(r => r.recordID === recordId) ?? arr[0] ?? null
+  } catch {
+    return null
+  }
+}
+
 /** Publie un enregistrement (processed → published) */
 export async function publishRecording(
   baseUrl: string,

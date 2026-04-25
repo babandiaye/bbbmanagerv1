@@ -13,13 +13,14 @@ export async function PUT(
   if (!a.ok) return a.response
 
   const { id } = await params
-  const { name, url, token, isActive, serviceName } = await req.json()
+  const { name, url, token, isActive, serviceName, bbbOriginServerName } = await req.json()
 
   const data: Record<string, unknown> = {}
-  if (name)                      data.name = name
-  if (url)                       data.url  = url.replace(/\/+$/, '')
-  if (serviceName !== undefined) data.serviceName = serviceName?.trim() || null
-  if (isActive !== undefined)    data.isActive = isActive
+  if (name)                              data.name = name
+  if (url)                               data.url  = url.replace(/\/+$/, '')
+  if (serviceName !== undefined)         data.serviceName = serviceName?.trim() || null
+  if (bbbOriginServerName !== undefined) data.bbbOriginServerName = bbbOriginServerName?.trim() || null
+  if (isActive !== undefined)            data.isActive = isActive
 
   // Si le token change, on re-valide la connexion et on refresh siteName/wsUsername
   if (token) {
