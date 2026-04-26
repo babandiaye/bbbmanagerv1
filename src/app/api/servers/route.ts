@@ -14,16 +14,18 @@ export async function GET() {
     include: { _count: { select: { recordings: true } } },
   })
 
-  // Ne jamais retourner le secret en clair
+  // Ne jamais retourner le secret/auth en clair
   return NextResponse.json(
     servers.map((s) => ({
-      id:          s.id,
-      name:        s.name,
-      url:         s.url,
-      isActive:    s.isActive,
-      lastSyncAt:  s.lastSyncAt,
-      createdAt:   s.createdAt,
-      recordings:  s._count.recordings,
+      id:               s.id,
+      name:             s.name,
+      url:              s.url,
+      rawIndexUrl:      s.rawIndexUrl,
+      hasRawIndexAuth:  !!s.rawIndexAuthEnc,
+      isActive:         s.isActive,
+      lastSyncAt:       s.lastSyncAt,
+      createdAt:        s.createdAt,
+      recordings:       s._count.recordings,
     }))
   )
 }
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
   const a = await requireAuth({ role: 'admin' })
   if (!a.ok) return a.response
 
-  const { name, url, secret } = await req.json()
+  const { name, url, secret, rawIndexUrl, rawIndexUser, rawIndexPassword } = await req.json()
   if (!name || !url || !secret) {
     return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
   }
@@ -55,11 +57,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Impossible de contacter le serveur BBB' }, { status: 400 })
   }
 
+  // Encoder l'auth basique en "user:pass" si fourni
+  let rawIndexAuthEnc: string | null = null
+  const u = rawIndexUser?.trim()
+  const p = rawIndexPassword
+  if (u && p) {
+    rawIndexAuthEnc = encrypt(`${u}:${p}`)
+  }
+
   const server = await prisma.bbbServer.create({
     data: {
       name,
-      url:       url.replace(/\/$/, ''),
-      secretEnc: encrypt(secret),
+      url:             url.replace(/\/$/, ''),
+      secretEnc:       encrypt(secret),
+      rawIndexUrl:     rawIndexUrl?.trim() ? rawIndexUrl.trim().replace(/\/+$/, '') + '/' : null,
+      rawIndexAuthEnc,
     },
   })
 

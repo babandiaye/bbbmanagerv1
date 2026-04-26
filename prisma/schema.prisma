@@ -57,6 +57,11 @@ model BbbServer {
   name         String
   url          String
   secretEnc    String    @map("secret_enc")
+  // URL de base pour acceder au dossier raw via Nginx (lecture des events.xml)
+  // Format : https://serveur/bbbmanager/  (le recordId sera concatene apres)
+  rawIndexUrl     String?  @map("raw_index_url")
+  // Basic Auth pour l'index raw, format "user:pass" chiffre AES-256-GCM
+  rawIndexAuthEnc String?  @map("raw_index_auth_enc")
   sshHost      String?   @map("ssh_host")
   sshPort      Int       @default(22) @map("ssh_port")
   sshUser      String?   @map("ssh_user")

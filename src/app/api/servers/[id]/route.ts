@@ -12,13 +12,27 @@ export async function PUT(
   if (!a.ok) return a.response
 
   const { id } = await params
-  const { name, url, secret, isActive } = await req.json()
+  const { name, url, secret, isActive, rawIndexUrl, rawIndexUser, rawIndexPassword, clearRawIndexAuth } = await req.json()
 
   const data: any = {}
   if (name)     data.name     = name
   if (url)      data.url      = url.replace(/\/$/, '')
   if (secret)   data.secretEnc = encrypt(secret)
   if (isActive !== undefined) data.isActive = isActive
+  if (rawIndexUrl !== undefined) {
+    data.rawIndexUrl = rawIndexUrl?.trim()
+      ? rawIndexUrl.trim().replace(/\/+$/, '') + '/'
+      : null
+  }
+  // Auth basique : 3 cas
+  //   - clearRawIndexAuth=true → on supprime l'auth
+  //   - rawIndexUser + rawIndexPassword fournis → on remplace
+  //   - sinon : on ne touche pas
+  if (clearRawIndexAuth === true) {
+    data.rawIndexAuthEnc = null
+  } else if (rawIndexUser?.trim() && rawIndexPassword) {
+    data.rawIndexAuthEnc = encrypt(`${rawIndexUser.trim()}:${rawIndexPassword}`)
+  }
 
   const server = await prisma.bbbServer.update({
     where: { id },

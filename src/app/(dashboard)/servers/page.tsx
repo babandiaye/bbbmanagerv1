@@ -8,6 +8,8 @@ type Server = {
   id: string
   name: string
   url: string
+  rawIndexUrl: string | null
+  hasRawIndexAuth: boolean
   isActive: boolean
   lastSyncAt: string | null
   recordings: number
@@ -18,7 +20,11 @@ export default function ServersPage() {
   const [servers, setServers] = useState<Server[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', url: '', secret: '' })
+  const [form, setForm] = useState({ name: '', url: '', secret: '', rawIndexUrl: '', rawIndexUser: '', rawIndexPassword: '' })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editRawUrl, setEditRawUrl] = useState('')
+  const [editRawUser, setEditRawUser] = useState('')
+  const [editRawPassword, setEditRawPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -47,7 +53,7 @@ export default function ServersPage() {
     if (!res.ok) {
       setError(data.error)
     } else {
-      setForm({ name: '', url: '', secret: '' })
+      setForm({ name: '', url: '', secret: '', rawIndexUrl: '', rawIndexUser: '', rawIndexPassword: '' })
       setShowForm(false)
       loadServers()
     }
@@ -91,6 +97,59 @@ export default function ServersPage() {
       body: JSON.stringify({ isActive: !isActive }),
     })
     loadServers()
+  }
+
+  async function handleSaveRawUrl(id: string) {
+    setMessage('')
+    setError('')
+    const body: Record<string, unknown> = {
+      rawIndexUrl: editRawUrl.trim() || null,
+    }
+    // Si l'admin a saisi un nouveau user+password → on met à jour l'auth
+    if (editRawUser.trim() && editRawPassword) {
+      body.rawIndexUser = editRawUser.trim()
+      body.rawIndexPassword = editRawPassword
+    }
+    // Si l'URL est vidée, on supprime aussi l'auth
+    if (!editRawUrl.trim()) {
+      body.clearRawIndexAuth = true
+    }
+    const res = await fetch(`/api/servers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      setError(data.error ?? 'Modification impossible')
+    } else {
+      setMessage('Index raw mis à jour.')
+      setEditingId(null)
+      setEditRawUrl('')
+      setEditRawUser('')
+      setEditRawPassword('')
+      await loadServers()
+    }
+  }
+
+  async function handleClearRawAuth(id: string) {
+    if (!confirm('Supprimer les credentials d\'authentification de l\'index raw ?')) return
+    const res = await fetch(`/api/servers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clearRawIndexAuth: true }),
+    })
+    if (res.ok) {
+      setMessage('Authentification raw supprimée.')
+      await loadServers()
+    }
+  }
+
+  function startEditRawUrl(s: Server) {
+    setEditingId(s.id)
+    setEditRawUrl(s.rawIndexUrl ?? '')
+    setEditRawUser('')
+    setEditRawPassword('')
   }
 
   function formatDate(date: string | null) {
@@ -179,6 +238,49 @@ export default function ServersPage() {
               />
             </div>
           </div>
+          <div className="mb-4">
+            <label className="block text-xs text-gray-500 mb-1">
+              URL Nginx du dossier raw <span className="text-gray-400">(optionnel — pour analyse events.xml)</span>
+            </label>
+            <input
+              type="url"
+              placeholder="https://serveur.example.com/bbbmanager/"
+              value={form.rawIndexUrl}
+              onChange={(e) => setForm({ ...form, rawIndexUrl: e.target.value })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">
+              URL exposant <code className="font-mono">/var/bigbluebutton/recording/raw/</code> via Nginx.
+              Permet à BBB Manager de lire les <code className="font-mono">events.xml</code> et d&apos;identifier
+              les enregistrements à rebuilder (status=0).
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Utilisateur Basic Auth <span className="text-gray-400">(si l&apos;index est protégé)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="bbbmanager"
+                value={form.rawIndexUser}
+                onChange={(e) => setForm({ ...form, rawIndexUser: e.target.value })}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Mot de passe Basic Auth</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={form.rawIndexPassword}
+                onChange={(e) => setForm({ ...form, rawIndexPassword: e.target.value })}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                autoComplete="new-password"
+              />
+            </div>
+          </div>
           <div className="flex gap-2 justify-end">
             <button
               type="button"
@@ -212,6 +314,7 @@ export default function ServersPage() {
               <tr className="border-b border-gray-100">
                 <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Nom</th>
                 <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">URL</th>
+                <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Index raw</th>
                 <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Enregistrements</th>
                 <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Dernière sync</th>
                 <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Statut</th>
@@ -223,6 +326,68 @@ export default function ServersPage() {
                 <tr key={server.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
                   <td className="px-4 py-3 font-medium text-gray-800">{server.name}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs truncate max-w-[180px]">{server.url}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {editingId === server.id ? (
+                      <div className="flex flex-col gap-1.5">
+                        <input
+                          type="url"
+                          value={editRawUrl}
+                          onChange={(e) => setEditRawUrl(e.target.value)}
+                          placeholder="https://serveur/bbbmanager/"
+                          className="w-64 text-xs border border-gray-200 rounded px-2 py-1 font-mono focus:outline-none focus:border-blue-300"
+                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={editRawUser}
+                            onChange={(e) => setEditRawUser(e.target.value)}
+                            placeholder="user (optionnel)"
+                            autoComplete="off"
+                            className="w-32 text-xs border border-gray-200 rounded px-2 py-1 font-mono focus:outline-none focus:border-blue-300"
+                          />
+                          <input
+                            type="password"
+                            value={editRawPassword}
+                            onChange={(e) => setEditRawPassword(e.target.value)}
+                            placeholder="password"
+                            autoComplete="new-password"
+                            className="w-32 text-xs border border-gray-200 rounded px-2 py-1 font-mono focus:outline-none focus:border-blue-300"
+                          />
+                          <button onClick={() => handleSaveRawUrl(server.id)} className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded">✓</button>
+                          <button onClick={() => { setEditingId(null); setEditRawUrl(''); setEditRawUser(''); setEditRawPassword('') }} className="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                          {server.rawIndexUrl ? (
+                            <span className="text-gray-600 font-mono truncate max-w-[180px]" title={server.rawIndexUrl}>{server.rawIndexUrl}</span>
+                          ) : (
+                            <span className="text-orange-500 italic">non configuré</span>
+                          )}
+                          {isAdmin && (
+                            <button onClick={() => startEditRawUrl(server)} className="text-xs text-blue-600 hover:underline">
+                              modifier
+                            </button>
+                          )}
+                        </div>
+                        {server.rawIndexUrl && (
+                          <div className="flex items-center gap-2 text-[10px]">
+                            {server.hasRawIndexAuth ? (
+                              <span className="text-green-600">🔒 auth configurée</span>
+                            ) : (
+                              <span className="text-gray-400">accès public (pas d&apos;auth)</span>
+                            )}
+                            {isAdmin && server.hasRawIndexAuth && (
+                              <button onClick={() => handleClearRawAuth(server.id)} className="text-red-500 hover:underline">
+                                supprimer
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{server.recordings}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(server.lastSyncAt)}</td>
                   <td className="px-4 py-3">

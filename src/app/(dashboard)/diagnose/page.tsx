@@ -15,7 +15,7 @@ import {
 type DiagnosisResult = {
   recordId: string
   found: boolean
-  source: 'db' | 'bbb_api' | 'not_found'
+  source: 'db' | 'bbb_api' | 'raw' | 'inferred' | 'not_found'
   server?: { name: string; url: string }
   state?: string
   published?: boolean
@@ -28,13 +28,25 @@ type DiagnosisResult = {
   rebuildCommand?: string
   bbbRecordingDbId?: string
   message?: string
+  rawAnalysis?: {
+    participantCount: number
+    participantNames: string[]
+    chatMessageCount: number
+    hasScreenShare: boolean
+    hasWebcam: boolean
+    isRebuildable: boolean
+    rebuildReasons: string[]
+  }
 }
 
 type Summary = {
   total: number
   inDb: number
   apiOnly: number
+  raw: number
+  inferred: number
   notFound: number
+  rebuildable: number
 }
 
 function CopyButton({ text, label = 'Copier' }: { text: string; label?: string }) {
@@ -70,6 +82,8 @@ function StateBadge({ state, published }: { state?: string; published?: boolean 
 function SourceIcon({ source }: { source: DiagnosisResult['source'] }) {
   if (source === 'db') return <CheckCircleIcon className="w-4 h-4 text-green-600" />
   if (source === 'bbb_api') return <ExclamationTriangleIcon className="w-4 h-4 text-orange-500" />
+  if (source === 'raw') return <ExclamationTriangleIcon className="w-4 h-4 text-purple-500" />
+  if (source === 'inferred') return <ExclamationTriangleIcon className="w-4 h-4 text-blue-500" />
   return <XCircleIcon className="w-4 h-4 text-red-500" />
 }
 
@@ -234,24 +248,38 @@ export default function DiagnosePage() {
       {summary && results && (
         <>
           {/* Cartes résumé */}
-          <div className="grid grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-6 gap-3 mb-6">
             <div className="bg-gray-50 rounded-lg p-4 text-center">
               <p className="text-2xl font-semibold text-gray-800">{summary.total}</p>
               <p className="text-xs text-gray-400 mt-1">Total</p>
             </div>
             <div className="bg-green-50 border border-green-100 rounded-lg p-4 text-center">
               <p className="text-2xl font-semibold text-green-700">{summary.inDb}</p>
-              <p className="text-xs text-green-600 mt-1">En base BBB Manager</p>
+              <p className="text-xs text-green-600 mt-1">En base</p>
             </div>
             <div className="bg-orange-50 border border-orange-100 rounded-lg p-4 text-center">
               <p className="text-2xl font-semibold text-orange-700">{summary.apiOnly}</p>
-              <p className="text-xs text-orange-600 mt-1">Sur BBB seulement (sync à faire)</p>
+              <p className="text-xs text-orange-600 mt-1">API BBB</p>
+            </div>
+            <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 text-center">
+              <p className="text-2xl font-semibold text-purple-700">{summary.raw}</p>
+              <p className="text-xs text-purple-600 mt-1">events.xml</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-center">
+              <p className="text-2xl font-semibold text-blue-700">{summary.inferred}</p>
+              <p className="text-xs text-blue-600 mt-1">Serveur déduit</p>
             </div>
             <div className="bg-red-50 border border-red-100 rounded-lg p-4 text-center">
               <p className="text-2xl font-semibold text-red-700">{summary.notFound}</p>
               <p className="text-xs text-red-600 mt-1">Introuvables</p>
             </div>
           </div>
+
+          {summary.rebuildable > 0 && (
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
+              ✓ <strong>{summary.rebuildable}</strong> enregistrement(s) identifié(s) comme <strong>rebuildables</strong> (critères met : durée ≥ 5 min, &gt; 2 participants, chat, partage écran ou webcam).
+            </div>
+          )}
 
           {/* Bloc commandes groupées par serveur */}
           {Object.keys(rebuildCommandsByServer).length > 0 && (
@@ -293,7 +321,9 @@ export default function DiagnosePage() {
                 {results.map((r, i) => (
                   <tr key={i} className={`border-t border-gray-50 ${
                     r.source === 'not_found' ? 'bg-red-50/30' :
-                    r.source === 'bbb_api' ? 'bg-orange-50/30' : ''
+                    r.source === 'bbb_api' ? 'bg-orange-50/30' :
+                    r.source === 'raw' ? 'bg-purple-50/30' :
+                    r.source === 'inferred' ? 'bg-blue-50/30' : ''
                   }`}>
                     <td className="px-3 py-2"><SourceIcon source={r.source} /></td>
                     <td className="px-3 py-2 font-mono text-[10px] text-gray-700 break-all max-w-[220px]" title={r.recordId}>{r.recordId}</td>
@@ -317,6 +347,31 @@ export default function DiagnosePage() {
                       )}
                       {r.source === 'bbb_api' && r.message && (
                         <span className="text-orange-700">{r.message}</span>
+                      )}
+                      {r.source === 'raw' && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            {r.rawAnalysis?.isRebuildable ? (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800">✓ Rebuildable</span>
+                            ) : (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-200 text-gray-600">Session vide</span>
+                            )}
+                          </div>
+                          {r.rawAnalysis && (
+                            <div className="text-[10px] text-gray-600 flex flex-wrap gap-x-2">
+                              <span>{r.rawAnalysis.participantCount} part.</span>
+                              {r.rawAnalysis.chatMessageCount > 0 && <span>{r.rawAnalysis.chatMessageCount} chat</span>}
+                              {r.rawAnalysis.hasScreenShare && <span>écran</span>}
+                              {r.rawAnalysis.hasWebcam && <span>webcam</span>}
+                            </div>
+                          )}
+                          {r.rawAnalysis?.rebuildReasons && r.rawAnalysis.rebuildReasons.length > 0 && (
+                            <p className="text-[10px] text-purple-700">{r.rawAnalysis.rebuildReasons.join(' · ')}</p>
+                          )}
+                        </div>
+                      )}
+                      {r.source === 'inferred' && r.message && (
+                        <span className="text-blue-700">{r.message}</span>
                       )}
                       {r.source === 'not_found' && r.message && (
                         <span className="text-red-700">{r.message}</span>
