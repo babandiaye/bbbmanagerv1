@@ -1,8 +1,8 @@
 import axios from 'axios'
 import { parseStringPromise } from 'xml2js'
 
-const MIN_DURATION_SEC = 5 * 60          // 5 minutes
-const MIN_PARTICIPANTS_THRESHOLD = 2     // strict > 2
+const MIN_DURATION_SEC = 15 * 60         // 15 minutes
+const MIN_PARTICIPANTS = 2                // au moins 2 participants
 
 /**
  * Construit l'URL events.xml d'un recording sur un serveur BBB.
@@ -154,24 +154,16 @@ export async function parseEventsXml(
     ? Math.floor((endMs - startMs) / 1000)
     : null
 
-  // Critères de rebuild : OR — au moins un critère doit être rempli
+  // Critères de rebuild : AND strict — durée ≥ 15 min ET participants ≥ 2
   const reasons: string[] = []
-  if (durationSec !== null && durationSec >= MIN_DURATION_SEC) {
-    reasons.push(`durée ${Math.round(durationSec / 60)} min ≥ 5 min`)
-  }
-  if (participantIds.size > MIN_PARTICIPANTS_THRESHOLD) {
-    reasons.push(`${participantIds.size} participants > 2`)
-  }
-  if (chatMessageCount > 0) {
-    reasons.push(`${chatMessageCount} message(s) chat`)
-  }
-  if (hasScreenShare) {
-    reasons.push('partage d\'écran présent')
-  }
-  if (hasWebcam) {
-    reasons.push('webcam utilisée')
-  }
-  const isRebuildable = reasons.length > 0
+  const durationOk = durationSec !== null && durationSec >= MIN_DURATION_SEC
+  const participantsOk = participantIds.size >= MIN_PARTICIPANTS
+  if (durationOk) reasons.push(`${Math.round(durationSec! / 60)} min`)
+  if (participantsOk) reasons.push(`${participantIds.size} participants`)
+  if (chatMessageCount > 0) reasons.push(`${chatMessageCount} chat`)
+  if (hasScreenShare) reasons.push('écran')
+  if (hasWebcam) reasons.push('webcam')
+  const isRebuildable = durationOk && participantsOk
 
   return {
     recordId,
@@ -193,6 +185,42 @@ export async function parseEventsXml(
     hasWebcam,
     isRebuildable,
     rebuildReasons: reasons,
+  }
+}
+
+/**
+ * Liste les dossiers présents dans l'index raw d'un serveur via Nginx autoindex.
+ * Suppose autoindex_format=json. Retourne la liste des recordIDs avec leur mtime.
+ *
+ * @param prefix - filtre optionnel : ne retourne que les recordIDs commençant par ce préfixe
+ *                 (utile pour cibler une activité BBB précise via son SHA1)
+ */
+export async function listRawDirectories(
+  rawIndexUrl: string,
+  auth?: string | null,
+  prefix?: string,
+): Promise<{ recordId: string; mtimeMs: number }[]> {
+  const cleanUrl = rawIndexUrl.replace(/\/+$/, '') + '/'
+  try {
+    const headers: Record<string, string> = {}
+    if (auth) headers.Authorization = 'Basic ' + Buffer.from(auth).toString('base64')
+    const res = await axios.get(cleanUrl, {
+      timeout: 15000,
+      headers,
+      validateStatus: (s) => s === 200,
+    })
+    const data = res.data
+    if (!Array.isArray(data)) return []
+    const filtered = data
+      .filter((d: any) => d?.type === 'directory' && typeof d.name === 'string')
+      .filter((d: any) => !prefix || d.name.startsWith(prefix))
+      .map((d: any) => ({
+        recordId: d.name as string,
+        mtimeMs: d.mtime ? new Date(d.mtime).getTime() : 0,
+      }))
+    return filtered
+  } catch {
+    return []
   }
 }
 

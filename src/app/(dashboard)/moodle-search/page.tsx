@@ -6,10 +6,10 @@ import {
   MagnifyingGlassIcon,
   AcademicCapIcon,
   FilmIcon,
-  PlayIcon,
   ExclamationTriangleIcon,
   ClipboardDocumentIcon,
   CheckCircleIcon,
+  WrenchScrewdriverIcon,
   ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline'
 
@@ -17,28 +17,22 @@ type Platform = { id: string; name: string; url: string; siteName: string | null
 
 type SearchType = 'cmid' | 'recordId'
 
-type EnrichedRecording = {
+type UnifiedRecording = {
   recordId: string
-  name: string
   startTimeMs: number | null
   durationMin: number | null
-  source: 'moodle_only' | 'bbb_only' | 'both'
-  moodle?: {
-    moodleId: string
-    publishedOnMoodle: boolean
-    imported: boolean
-    playbackUrls: string[]
-  }
-  bbb?: {
-    id: string
-    state: string
-    published: boolean
-    durationSec: number
-    startTime: string
-    playbackUrl: string | null
-    serverName: string
-    serverUrl: string
-  }
+  participantCount?: number
+  chatMessageCount?: number
+  hasScreenShare?: boolean
+  hasWebcam?: boolean
+  publishedOnMoodle: boolean
+  publishedOnBbb: boolean
+  inRaw: boolean
+  isRebuildable: boolean
+  rebuildReasons: string[]
+  server?: { name: string; url: string }
+  bbbState?: string
+  bbbRecordingDbId?: string
   rebuildCommand?: string
 }
 
@@ -47,9 +41,9 @@ type SearchResponse = {
   input: { type: SearchType; value: string }
   courses: Array<{ id: number; shortname: string; fullname: string }>
   activities: Array<{ id: number; course: number; name: string; meetingid: string }>
-  probableServer: { name: string; url: string } | null
-  recordings: EnrichedRecording[]
-  summary: { total: number; synced: number; moodleOnly: number; bbbOnly: number }
+  activityMeetingPrefix: string | null
+  recordings: UnifiedRecording[]
+  summary: { total: number; publishedBoth: number; onlyRaw: number; rebuildable: number; rawMissing: number }
   warning?: string
 }
 
@@ -68,7 +62,6 @@ const SEARCH_TYPES: Array<{ value: SearchType; label: string; placeholder: strin
   },
 ]
 
-/** Validation client (miroir de la validation serveur) */
 function validateClient(type: SearchType, value: string): string | null {
   const v = value.trim()
   if (!v) return 'Champ requis'
@@ -89,30 +82,59 @@ function formatDate(ms: number | null): string {
   }).format(new Date(ms))
 }
 
-function StateBadge({ state, published }: { state: string; published: boolean }) {
-  if (published || state === 'published') return <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700">Publié</span>
-  if (state === 'processing')  return <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">En traitement</span>
-  if (state === 'processed')   return <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700">Traité — non publié</span>
-  if (state === 'unpublished') return <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700">Dé-publié</span>
-  if (state === 'deleted')     return <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">Supprimé</span>
-  return <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">{state}</span>
+type SourceKind = 'both' | 'moodle_only' | 'bbb_only' | 'raw_only' | 'unknown'
+
+function sourceOf(r: UnifiedRecording): SourceKind {
+  if (r.publishedOnMoodle && r.publishedOnBbb) return 'both'
+  if (r.publishedOnMoodle && !r.publishedOnBbb) return 'moodle_only'
+  if (!r.publishedOnMoodle && r.publishedOnBbb) return 'bbb_only'
+  if (r.inRaw) return 'raw_only'
+  return 'unknown'
 }
 
-function SourceBadge({ source }: { source: EnrichedRecording['source'] }) {
+function SourceBadge({ source }: { source: SourceKind }) {
   if (source === 'both') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700"><CheckCircleIcon className="w-3 h-3"/>Moodle + BBB</span>
   if (source === 'moodle_only') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700"><ExclamationTriangleIcon className="w-3 h-3"/>Moodle seul</span>
-  return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">BBB seul</span>
+  if (source === 'bbb_only') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">BBB seul</span>
+  if (source === 'raw_only') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">Raw seul</span>
+  return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-400">—</span>
 }
 
-function CopyButton({ text }: { text: string }) {
+function StatusCell({ r }: { r: UnifiedRecording }) {
+  if (r.publishedOnMoodle) {
+    return <span className="text-xs text-green-700 font-medium">Publié</span>
+  }
+  if (r.isRebuildable) {
+    return (
+      <div className="flex flex-col">
+        <span className="inline-flex items-center gap-1 text-xs text-purple-700 font-medium">
+          <WrenchScrewdriverIcon className="w-3.5 h-3.5" />
+          Rebuildable
+        </span>
+        {r.rebuildReasons.length > 0 && (
+          <span className="text-[10px] text-gray-400 mt-0.5">{r.rebuildReasons.join(', ')}</span>
+        )}
+      </div>
+    )
+  }
+  return <span className="text-xs text-gray-400">Non publié</span>
+}
+
+function CopyButton({ text, label = 'Copier' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <button
-      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+      onClick={(e) => {
+        e.stopPropagation()
+        navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      }}
       className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+      title={label}
     >
       <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-      {copied ? 'Copié !' : 'Copier'}
+      {copied && <span>Copié !</span>}
     </button>
   )
 }
@@ -125,6 +147,10 @@ export default function MoodleSearchPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<SearchResponse | null>(null)
   const [error, setError] = useState('')
+
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [onlyRebuildable, setOnlyRebuildable] = useState(false)
 
   useEffect(() => {
     fetch('/api/moodle-platforms')
@@ -140,11 +166,37 @@ export default function MoodleSearchPage() {
   const typeMeta = useMemo(() => SEARCH_TYPES.find(t => t.value === searchType)!, [searchType])
   const validationError = useMemo(() => validateClient(searchType, value), [searchType, value])
 
-  // Pour cmid : on génère l'URL Moodle complète (purement informatif, jamais utilisée pour un fetch)
   const generatedMoodleUrl = useMemo(() => {
     if (searchType !== 'cmid' || !currentPlatform || !value || validationError) return null
     return `${currentPlatform.url}/mod/bigbluebuttonbn/view.php?id=${value}`
   }, [searchType, currentPlatform, value, validationError])
+
+  const filteredRecordings = useMemo(() => {
+    if (!result) return []
+    const fromMs = dateFrom ? new Date(dateFrom).getTime() : null
+    const toMs = dateTo ? new Date(dateTo).getTime() + 24 * 3600 * 1000 - 1 : null
+    return result.recordings.filter(r => {
+      if (onlyRebuildable && !r.isRebuildable) return false
+      if (fromMs !== null && (r.startTimeMs ?? 0) < fromMs) return false
+      if (toMs !== null && (r.startTimeMs ?? Infinity) > toMs) return false
+      return true
+    })
+  }, [result, dateFrom, dateTo, onlyRebuildable])
+
+  // Comptes dérivés (sur la liste complète, pas filtrée)
+  const counts = useMemo(() => {
+    if (!result) return null
+    const c = { total: 0, both: 0, moodleOnly: 0, bbbOnly: 0, rawOnly: 0 }
+    for (const r of result.recordings) {
+      c.total++
+      const s = sourceOf(r)
+      if (s === 'both') c.both++
+      else if (s === 'moodle_only') c.moodleOnly++
+      else if (s === 'bbb_only') c.bbbOnly++
+      else if (s === 'raw_only') c.rawOnly++
+    }
+    return c
+  }, [result])
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -191,7 +243,7 @@ export default function MoodleSearchPage() {
       <div className="mb-6">
         <h1 className="text-lg font-semibold text-gray-900">Diagnostic Moodle ↔ BBB</h1>
         <p className="text-sm text-gray-400">
-          Choisissez un critère de recherche, saisissez la valeur, le système croise les données Moodle et BBB Manager pour identifier les enregistrements à rebuilder.
+          Choisissez un critère, le système croise Moodle, BBB Manager et les fichiers raw pour identifier les enregistrements à rebuilder.
         </p>
       </div>
 
@@ -231,7 +283,6 @@ export default function MoodleSearchPage() {
           </div>
         </div>
 
-        {/* Aide contextuelle + erreur de validation + URL générée pour cmid */}
         <div className="text-xs space-y-1">
           <p className="text-gray-400">{typeMeta.help}</p>
           {value && validationError && <p className="text-red-500">{validationError}</p>}
@@ -252,9 +303,8 @@ export default function MoodleSearchPage() {
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>
       )}
 
-      {result && (
+      {result && counts && (
         <>
-          {/* Warning : pas de filtre par plateforme configuré */}
           {result.warning && (
             <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm rounded-lg px-4 py-3 mb-4 flex items-start gap-3">
               <ExclamationTriangleIcon className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
@@ -283,56 +333,74 @@ export default function MoodleSearchPage() {
             )}
           </div>
 
-          {/* Résumé */}
-          <div className="grid grid-cols-4 gap-3 mb-6">
+          {/* Résumé : 4 cartes (5 si raw_only > 0) */}
+          <div className={`grid ${counts.rawOnly > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-3 mb-6`}>
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-xs text-gray-400 mb-1">Total</p>
-              <p className="text-2xl font-semibold text-gray-900">{result.summary.total}</p>
+              <p className="text-2xl font-semibold text-gray-900">{counts.total}</p>
             </div>
             <div className="bg-green-50 border border-green-100 rounded-lg p-4">
               <p className="text-xs text-green-700 mb-1">Moodle + BBB</p>
-              <p className="text-2xl font-semibold text-green-700">{result.summary.synced}</p>
+              <p className="text-2xl font-semibold text-green-700">{counts.both}</p>
               <p className="text-[10px] text-green-600 mt-0.5">Sync OK</p>
             </div>
             <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
               <p className="text-xs text-orange-700 mb-1">Moodle seul</p>
-              <p className="text-2xl font-semibold text-orange-700">{result.summary.moodleOnly}</p>
+              <p className="text-2xl font-semibold text-orange-700">{counts.moodleOnly}</p>
               <p className="text-[10px] text-orange-600 mt-0.5">À rebuilder</p>
             </div>
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
               <p className="text-xs text-blue-700 mb-1">BBB seul</p>
-              <p className="text-2xl font-semibold text-blue-700">{result.summary.bbbOnly}</p>
+              <p className="text-2xl font-semibold text-blue-700">{counts.bbbOnly}</p>
               <p className="text-[10px] text-blue-600 mt-0.5">Pas sur Moodle</p>
             </div>
+            {counts.rawOnly > 0 && (
+              <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
+                <p className="text-xs text-purple-700 mb-1">Raw seul</p>
+                <p className="text-2xl font-semibold text-purple-700">{counts.rawOnly}</p>
+                <p className="text-[10px] text-purple-600 mt-0.5">Orphelins</p>
+              </div>
+            )}
           </div>
 
-          {/* Alerte orphelins */}
-          {result.summary.moodleOnly > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
-              <div className="flex items-start gap-3">
-                <ExclamationTriangleIcon className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 text-sm">
-                  <p className="font-medium text-orange-900">
-                    {result.summary.moodleOnly} enregistrement(s) visible(s) sur Moodle mais absent(s) de la base BBB Manager.
-                  </p>
-                  <p className="text-xs text-orange-700 mt-1">
-                    Lancer <code className="font-mono bg-orange-100 px-1 rounded">bbb-record --rebuild &lt;recordId&gt;</code> sur le serveur BBB
-                    {result.probableServer && <> (probablement <strong>{result.probableServer.name}</strong>)</>}.
-                  </p>
-                </div>
+          {/* Filtres */}
+          <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4">
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">À partir de</label>
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-300" />
               </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Jusqu&apos;à</label>
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-300" />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer pb-1.5">
+                <input type="checkbox" checked={onlyRebuildable} onChange={(e) => setOnlyRebuildable(e.target.checked)}
+                  className="rounded border-gray-300" />
+                Uniquement rebuildables
+              </label>
+              {(dateFrom || dateTo || onlyRebuildable) && (
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); setOnlyRebuildable(false) }}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline pb-2"
+                >
+                  Réinitialiser
+                </button>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Tableau */}
           <section>
             <h2 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
               <FilmIcon className="w-4 h-4 text-gray-400" />
-              Enregistrements ({result.recordings.length})
+              Enregistrements ({filteredRecordings.length}{filteredRecordings.length !== counts.total ? ` / ${counts.total}` : ''})
             </h2>
-            {result.recordings.length === 0 ? (
+            {filteredRecordings.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-100 text-center py-10 text-gray-400 text-sm">
-                Aucun enregistrement trouvé.
+                {counts.total === 0 ? 'Aucun enregistrement trouvé.' : 'Aucun résultat avec ces filtres.'}
               </div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
@@ -344,32 +412,35 @@ export default function MoodleSearchPage() {
                       <th className="text-left text-xs font-medium text-gray-400 px-3 py-2">Date</th>
                       <th className="text-left text-xs font-medium text-gray-400 px-3 py-2">Durée</th>
                       <th className="text-left text-xs font-medium text-gray-400 px-3 py-2">Source</th>
-                      <th className="text-left text-xs font-medium text-gray-400 px-3 py-2">État Moodle</th>
+                      <th className="text-left text-xs font-medium text-gray-400 px-3 py-2">État</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {result.recordings.map((r) => (
-                      <tr key={r.recordId} className={`border-t border-gray-50 hover:bg-gray-50 transition ${r.source === 'moodle_only' ? 'bg-orange-50/30' : ''}`}>
-                        <td className="px-3 py-2 font-mono text-[11px] text-gray-700 break-all">{r.recordId}</td>
-                        <td className="px-3 py-2">
-                          {r.bbb ? (
-                            <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded font-medium">{r.bbb.serverName}</span>
-                          ) : (
-                            <span className="text-xs text-gray-300">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{formatDate(r.startTimeMs)}</td>
-                        <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{r.durationMin ? `${r.durationMin} min` : '—'}</td>
-                        <td className="px-3 py-2"><SourceBadge source={r.source} /></td>
-                        <td className="px-3 py-2">
-                          {r.moodle ? (
-                            r.moodle.publishedOnMoodle
-                              ? <span className="text-xs text-green-700">Publié</span>
-                              : <span className="text-xs text-gray-500">Non publié</span>
-                          ) : <span className="text-xs text-gray-300">—</span>}
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredRecordings.map((r) => {
+                      const src = sourceOf(r)
+                      const isOrphan = src === 'moodle_only' || src === 'raw_only'
+                      return (
+                        <tr key={r.recordId} className={`border-t border-gray-50 hover:bg-gray-50 transition ${isOrphan ? 'bg-orange-50/30' : ''}`}>
+                          <td className="px-3 py-2 font-mono text-[11px] text-gray-700 break-all">
+                            <div className="flex items-center gap-2">
+                              <span>{r.recordId}</span>
+                              <CopyButton text={r.recordId} label="Copier l'ID" />
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            {r.server ? (
+                              <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded font-medium">{r.server.name}</span>
+                            ) : (
+                              <span className="text-xs text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{formatDate(r.startTimeMs)}</td>
+                          <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{r.durationMin != null ? `${r.durationMin} min` : '—'}</td>
+                          <td className="px-3 py-2"><SourceBadge source={src} /></td>
+                          <td className="px-3 py-2"><StatusCell r={r} /></td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

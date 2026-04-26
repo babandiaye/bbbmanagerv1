@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!REBUILDABLE_STATES.includes(recording.state as any)) {
     return NextResponse.json({ error: `État "${recording.state}" non rebuilable` }, { status: 400 })
   }
-  if (recording.durationSec < MIN_RECORDING_DURATION_SEC) return NextResponse.json({ error: 'Durée insuffisante (< 10 min)' }, { status: 400 })
+  if (recording.durationSec < MIN_RECORDING_DURATION_SEC) return NextResponse.json({ error: 'Durée insuffisante (< 15 min)' }, { status: 400 })
 
   // Créer le job
   const job = await prisma.rebuildJob.create({

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import SyncButton from '@/components/SyncButton'
 import RebuildButton from '@/components/RebuildButton'
+import RebuildableOrphansCard from '@/components/RebuildableOrphansCard'
 import { MIN_RECORDING_DURATION_SEC, REBUILDABLE_STATES } from '@/lib/constants'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
@@ -176,6 +177,9 @@ export default function DashboardClient({ fullName }: { fullName: string }) {
         <div className="text-center py-12 text-gray-400 text-sm">Chargement...</div>
       ) : (
         <>
+          {/* Carte Orphelins rebuildables (basee sur le scan raw) */}
+          <RebuildableOrphansCard isAdmin={isAdmin} />
+
           {/* Titre scope */}
           <p className="text-xs text-gray-400 mb-3 uppercase tracking-wider">
             Portée : {selectedServerName}

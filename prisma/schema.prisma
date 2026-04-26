@@ -71,8 +71,9 @@ model BbbServer {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  recordings   Recording[]
-  rebuildJobs  RebuildJob[]
+  recordings    Recording[]
+  rebuildJobs   RebuildJob[]
+  rawDiscoveries RawDiscovery[]
 
   @@map("bbb_servers")
 }
@@ -102,6 +103,42 @@ model Recording {
   @@index([startTime])
   @@index([serverId, state])
   @@map("recordings")
+}
+
+// Index des recordings detectes en raw via l'autoindex Nginx + events.xml.
+// Un cron rafraichit cette table toutes les 4h, en respectant une fenetre de scan
+// (RAW_SCAN_WINDOW_DAYS) afin d'eviter de fetcher tout le disque.
+// Les entrees dont le dossier disparait du autoindex sont automatiquement purgees.
+model RawDiscovery {
+  id                String   @id @default(uuid())
+  recordId          String   @map("record_id")
+  serverId          String   @map("server_id")
+  // metriques extraites de events.xml
+  startTimeMs       BigInt?  @map("start_time_ms")
+  durationSec       Int?     @map("duration_sec")
+  participantCount  Int      @default(0) @map("participant_count")
+  chatMessageCount  Int      @default(0) @map("chat_message_count")
+  hasScreenShare    Boolean  @default(false) @map("has_screen_share")
+  hasWebcam         Boolean  @default(false) @map("has_webcam")
+  // metadata de events.xml utiles pour filtrer par plateforme Moodle
+  bbbOriginServerName String? @map("bbb_origin_server_name")
+  bbbContextName    String?  @map("bbb_context_name")
+  bbbContextLabel   String?  @map("bbb_context_label")
+  // critere derive : >= MIN_DURATION_SEC ET >= MIN_PARTICIPANTS
+  isRebuildable     Boolean  @default(false) @map("is_rebuildable")
+  // cross-check au moment du scan : la recording est elle deja publiee en base ?
+  publishedInDb     Boolean  @default(false) @map("published_in_db")
+  // timestamp du dossier dans l'autoindex (pour scan incremental)
+  rawMtimeMs        BigInt?  @map("raw_mtime_ms")
+  scannedAt         DateTime @default(now()) @map("scanned_at")
+
+  server BbbServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@unique([recordId, serverId])
+  @@index([isRebuildable, publishedInDb])
+  @@index([startTimeMs])
+  @@index([bbbOriginServerName])
+  @@map("raw_discoveries")
 }
 
 model RebuildJob {

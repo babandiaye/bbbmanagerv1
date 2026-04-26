@@ -2,11 +2,17 @@ import cron from 'node-cron'
 import { redis } from '@/lib/redis'
 import { logger } from '@/lib/logger'
 import { syncAllServers, type SyncResult } from '@/lib/sync'
+import { scanRawDiscoveries, type RawScanResult } from '@/lib/raw-scan'
 
 const LOCK_KEY = 'bbbmanager:sync:lock'
 const LAST_RESULT_KEY = 'bbbmanager:sync:last-auto-result'
 const LOCK_TTL_SEC = 600 // 10 min — au cas où la sync crash, le lock expire tout seul
 const SCHEDULE = '0 * * * *' // Toutes les heures pile (minute 0)
+
+const RAW_SCAN_LOCK_KEY = 'bbbmanager:raw-scan:lock'
+const RAW_SCAN_LAST_RESULT_KEY = 'bbbmanager:raw-scan:last-result'
+const RAW_SCAN_LOCK_TTL_SEC = 60 * 30 // 30 min — un scan complet dure rarement plus
+const RAW_SCAN_SCHEDULE = '15 */4 * * *' // Toutes les 4h, a la minute 15 (decale du sync horaire)
 
 let cronStarted = false
 
@@ -45,6 +51,9 @@ export function startAutoSyncCron(): void {
 
   cron.schedule(SCHEDULE, runAutoSync, { timezone: 'Africa/Dakar' })
   logger.info({ schedule: SCHEDULE }, 'Cron auto-sync activé')
+
+  cron.schedule(RAW_SCAN_SCHEDULE, runRawScan, { timezone: 'Africa/Dakar' })
+  logger.info({ schedule: RAW_SCAN_SCHEDULE }, 'Cron raw-scan activé')
 }
 
 async function runAutoSync(): Promise<void> {
@@ -118,5 +127,90 @@ export async function getLastAutoSyncResult(): Promise<LastAutoSyncResult | null
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
+  }
+}
+
+export type LastRawScanResult = RawScanResult & { startedAt: string; finishedAt: string }
+
+async function runRawScan(): Promise<void> {
+  if (redis) {
+    try {
+      const acquired = await redis.set(RAW_SCAN_LOCK_KEY, String(process.pid), 'EX', RAW_SCAN_LOCK_TTL_SEC, 'NX')
+      if (acquired !== 'OK') {
+        logger.info('Cron : raw-scan déjà en cours (lock Redis pris), skip')
+        return
+      }
+    } catch (err: any) {
+      logger.error({ err: err.message }, 'Cron : erreur acquisition lock raw-scan')
+      return
+    }
+  }
+
+  const startedAt = new Date()
+  let result: RawScanResult | null = null
+  try {
+    result = await scanRawDiscoveries()
+  } catch (err: any) {
+    logger.error({ err: err.message }, 'Cron : raw-scan a crashé')
+  }
+
+  if (redis) {
+    try { await redis.del(RAW_SCAN_LOCK_KEY) } catch {}
+  }
+
+  if (result && redis) {
+    try {
+      await redis.set(
+        RAW_SCAN_LAST_RESULT_KEY,
+        JSON.stringify({ ...result, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() }),
+        'EX', 60 * 60 * 24 * 7,
+      )
+    } catch (err: any) {
+      logger.error({ err: err.message }, 'Cron : erreur persistance raw-scan')
+    }
+  }
+}
+
+/** Lit le dernier resultat du scan raw depuis Redis */
+export async function getLastRawScanResult(): Promise<LastRawScanResult | null> {
+  if (!redis) return null
+  try {
+    const raw = await redis.get(RAW_SCAN_LAST_RESULT_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Declenche un scan manuel (utilise par l'API /api/raw-scan).
+ * Verifie le lock Redis pour eviter les concurrences avec le cron.
+ */
+export async function triggerRawScan(): Promise<{ ok: boolean; reason?: string; result?: RawScanResult }> {
+  if (redis) {
+    try {
+      const acquired = await redis.set(RAW_SCAN_LOCK_KEY, String(process.pid), 'EX', RAW_SCAN_LOCK_TTL_SEC, 'NX')
+      if (acquired !== 'OK') return { ok: false, reason: 'Scan déjà en cours' }
+    } catch (err: any) {
+      return { ok: false, reason: `Lock Redis: ${err.message}` }
+    }
+  }
+  const startedAt = new Date()
+  try {
+    const result = await scanRawDiscoveries()
+    if (redis) {
+      try {
+        await redis.set(
+          RAW_SCAN_LAST_RESULT_KEY,
+          JSON.stringify({ ...result, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() }),
+          'EX', 60 * 60 * 24 * 7,
+        )
+      } catch {}
+    }
+    return { ok: true, result }
+  } finally {
+    if (redis) {
+      try { await redis.del(RAW_SCAN_LOCK_KEY) } catch {}
+    }
   }
 }

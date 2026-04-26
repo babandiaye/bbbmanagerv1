@@ -277,7 +277,7 @@ export default function DiagnosePage() {
 
           {summary.rebuildable > 0 && (
             <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
-              ✓ <strong>{summary.rebuildable}</strong> enregistrement(s) identifié(s) comme <strong>rebuildables</strong> (critères met : durée ≥ 5 min, &gt; 2 participants, chat, partage écran ou webcam).
+              ✓ <strong>{summary.rebuildable}</strong> enregistrement(s) identifié(s) comme <strong>rebuildables</strong> (critères : durée ≥ 15 min ET ≥ 2 participants).
             </div>
           )}
 
